@@ -6,6 +6,8 @@ const TITLES = {
   '/dashboard/company': 'Dashboard',
   '/company-profile':   'Company Profile',
   '/postings':          'Post a Job',
+  '/applications':      'Applications',
+  '/candidates':        'Candidates',
 };
 
 /* ══════════════════════════════════════════════════

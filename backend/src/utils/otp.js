@@ -16,6 +16,14 @@ const getTransporter = () => {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
     },
+    // DEV-ONLY escape hatch for "unable to verify the first certificate",
+    // which is almost always a local proxy/antivirus doing TLS inspection
+    // on a dev machine. Never set SMTP_ALLOW_INSECURE_TLS in production —
+    // the proper fix there is trusting the actual intercepting CA via
+    // NODE_EXTRA_CA_CERTS, not skipping verification.
+    tls: process.env.SMTP_ALLOW_INSECURE_TLS === 'true'
+      ? { rejectUnauthorized: false }
+      : undefined,
   });
   return _transporter;
 };

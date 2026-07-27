@@ -10,6 +10,7 @@ const userRoutes    = require('./user/user.routes');
 const profileRoutes = require('./profile/profile.routes');
 const githubRoutes  = require('./github/github.routes');
 const roadmapRoutes = require('./roadmap/roadmap.routes');
+const jobRoutes      = require('./job/job.routes');
 const AppError      = require('./utils/AppError');
 
 const app = express();
@@ -23,11 +24,26 @@ if (process.env.NODE_ENV === 'development') app.use(morgan('dev'));
 /* ── Serve uploaded files ── */
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
-/* ── Rate limiters ── */
-const globalLimiter = rateLimit({ windowMs: 15*60*1000, max: 100,
-  message: { success: false, message: 'Too many requests, please try again later.' } });
-const authLimiter = rateLimit({ windowMs: 15*60*1000, max: 20,
-  message: { success: false, message: 'Too many auth attempts, please try again later.' } });
+/* ── Rate limiters ──
+   IMPORTANT: globalLimiter runs on every single request regardless of
+   route, so it was previously sharing one 100-req/15min bucket between
+   routine dashboard traffic (roadmap, GitHub repos, profile, several
+   requests per page load) and sensitive auth endpoints. Burning through
+   it on the candidate side would then silently block unrelated auth
+   calls like signup/send-otp for the next 15 minutes, from any account.
+   Sized generously here since it's meant as a DDoS backstop, not a
+   per-feature throttle — routes that actually need tighter limits
+   (auth, roadmap generation) get their own dedicated limiter instead. */
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, max: 600,
+  standardHeaders: true, legacyHeaders: false,
+  message: { success: false, message: 'Too many requests, please try again later.' },
+});
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, max: 30,
+  standardHeaders: true, legacyHeaders: false,
+  message: { success: false, message: 'Too many auth attempts, please try again later.' },
+});
 
 app.use(globalLimiter);
 
@@ -38,6 +54,7 @@ app.use('/api/user',    userRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/github',  githubRoutes);
 app.use('/api/roadmap', roadmapRoutes);
+app.use('/api/jobs',    jobRoutes);
 
 app.use((req, _res, next) => next(new AppError(`Route ${req.originalUrl} not found.`, 404)));
 

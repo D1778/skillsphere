@@ -30,8 +30,18 @@ const updateProfile = async (req, res, next) => {
     // don't set a dotted 'personal.photoUrl' path alongside the whole
     // `personal` object (Mongo rejects writing to a parent + child path
     // in the same $set).
+    //
+    // IMPORTANT: a photo-only save (no `personal` in the request body,
+    // e.g. just changing the avatar) used to overwrite the whole
+    // `personal` subdocument with just { photoUrl }, silently wiping
+    // fullName/title/etc. Load the existing document first so we always
+    // merge on top of what's actually saved, not just what this request sent.
     if (req.files?.photo?.[0]) {
+      const existing = update.personal
+        ? null
+        : await Profile.findOne({ userId: req.user._id }).select('personal').lean();
       update.personal = {
+        ...(existing?.personal || {}),
         ...(update.personal || {}),
         photoUrl: `/uploads/${req.files.photo[0].filename}`,
       };

@@ -8,8 +8,9 @@ const router = Router();
 router.use(authenticate);
 
 /* ── Profile ──────────────────────────────────── */
-router.get  ('/me', controller.getMe);
-router.patch('/me', controller.updateMe);
+router.get   ('/me', controller.getMe);
+router.patch ('/me', controller.updateMe);
+router.delete('/me', controller.deleteMe);
 
 /* ── Role-gated route stubs ───────────────────────
    Uncomment and add controllers as you build out

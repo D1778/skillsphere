@@ -47,6 +47,19 @@ const processQueue = (error, token = null) => {
   failedQueue = [];
 };
 
+// Reassigning window.location.href to the *same* URL still forces a full
+// page reload in most browsers — so if a 401 fires while already sitting
+// on /signin (e.g. an unauthenticated background call, like a context
+// fetching data before the user is confirmed signed in), the old
+// unconditional redirect would reload the page, which reruns every
+// provider's mount-time fetch, 401s again, redirects again: an infinite
+// reload loop. This guard makes the redirect a no-op once we're already there.
+const redirectToSignin = () => {
+  if (window.location.pathname !== '/signin') {
+    window.location.href = '/signin';
+  }
+};
+
 api.interceptors.response.use(
   (res) => res,
   async (err) => {
@@ -56,7 +69,7 @@ api.interceptors.response.use(
       const refreshToken = getRefreshToken();
       if (!refreshToken) {
         clearTokens();
-        window.location.href = '/signin';
+        redirectToSignin();
         return Promise.reject(err);
       }
 
@@ -82,7 +95,7 @@ api.interceptors.response.use(
       } catch (refreshErr) {
         processQueue(refreshErr, null);
         clearTokens();
-        window.location.href = '/signin';
+        redirectToSignin();
         return Promise.reject(refreshErr);
       } finally {
         isRefreshing = false;
@@ -97,27 +110,15 @@ api.interceptors.response.use(
    AUTH API
 ══════════════════════════════════════════════════ */
 
-/**
- * Signup step 1 — send OTP to verify the email address.
- * No return value needed; backend just sends the email.
- */
 export const sendSignupOtp = async (email) => {
   await api.post('/auth/signup/send-otp', { email });
 };
 
-/**
- * Signup step 2 — verify the OTP.
- * Body: { email, code }  (no clerkEmailAddressId)
- */
 export const verifySignupOtp = async ({ email, code }) => {
   const { data } = await api.post('/auth/signup/verify-otp', { email, code });
   return data.data;
 };
 
-/**
- * Signup step 3 — create Firebase user + MongoDB record.
- * Returns { user, accessToken, refreshToken }
- */
 export const signup = async ({ email, password, role, fullName, companyName }) => {
   const { data } = await api.post('/auth/signup', {
     email, password, role, fullName, companyName,
@@ -126,20 +127,12 @@ export const signup = async ({ email, password, role, fullName, companyName }) =
   return data.data;
 };
 
-/**
- * Email/password signin via Firebase ID token.
- * Returns { user, accessToken, refreshToken }
- */
 export const signin = async ({ idToken, role }) => {
   const { data } = await api.post('/auth/signin', { idToken, role });
   setTokens(data.data);
   return data.data;
 };
 
-/**
- * OAuth signin (Google / GitHub).
- * Returns { user, accessToken, refreshToken }
- */
 export const oauthSignin = async ({ idToken, provider, role, fullName, companyName }) => {
   const { data } = await api.post('/auth/oauth', {
     idToken, provider, role, fullName, companyName,
@@ -148,18 +141,15 @@ export const oauthSignin = async ({ idToken, provider, role, fullName, companyNa
   return data.data;
 };
 
-/** Step 1 — send OTP email for forgot password. */
 export const sendForgotPasswordOtp = async (email) => {
   await api.post('/auth/forgot-password/send-otp', { email });
 };
 
-/** Step 2 — verify OTP. Returns { resetToken } */
 export const verifyForgotPasswordOtp = async ({ email, code }) => {
   const { data } = await api.post('/auth/forgot-password/verify-otp', { email, code });
   return data.data;
 };
 
-/** Step 3 — reset password using the resetToken from step 2. */
 export const resetPassword = async ({ resetToken, newPassword }) => {
   const { data } = await api.post('/auth/forgot-password/reset', {
     resetToken, newPassword,
@@ -167,7 +157,6 @@ export const resetPassword = async ({ resetToken, newPassword }) => {
   return data;
 };
 
-/** Signout — clears tokens locally and revokes refresh token on server. */
 export const signout = async () => {
   const refreshToken = getRefreshToken();
   clearTokens();
@@ -188,6 +177,12 @@ export const getMe = async () => {
 export const updateMe = async (fields) => {
   const { data } = await api.patch('/user/me', fields);
   return data.data.user;
+};
+
+export const deleteAccount = async (confirmText) => {
+  const { data } = await api.delete('/user/me', { data: { confirmText } });
+  clearTokens();
+  return data;
 };
 
 /* ── PROFILE ── */
@@ -213,49 +208,88 @@ export const saveProfile = async (profileData, photoFile = null, certFiles = {},
    CAREER ROADMAP
 ══════════════════════════════════════════════════ */
 
-/**
- * Fetches the signed-in candidate's saved roadmaps.
- * Returns { current, previous } — either may be null if the
- * user has never generated a roadmap yet / has no previous one.
- */
 export const getRoadmap = async () => {
   const { data } = await api.get('/roadmap');
   return data.data;
 };
 
-/**
- * Generates a fresh roadmap for the given target role.
- * Backend rotates current -> previous (discarding the old previous)
- * and the new roadmap becomes current. Returns { current, previous }.
- * This calls an LLM server-side, so it can take several seconds —
- * callers should show a generating/loading state.
- */
 export const generateRoadmap = async (targetRole) => {
   const { data } = await api.post('/roadmap/generate', { targetRole });
   return data.data;
 };
 
-/**
- * Swaps current <-> previous. 404s (thrown as an error) if there's
- * no previous roadmap saved. Calling it twice in a row flips back,
- * so it doubles as undo/redo.
- */
 export const loadPreviousRoadmap = async () => {
   const { data } = await api.post('/roadmap/load-previous');
   return data.data;
 };
 
 /* ══════════════════════════════════════════════════
-   JOBS
+   JOBS (company side — posting & managing listings)
 ══════════════════════════════════════════════════ */
 
 /**
- * Recommended jobs for the dashboard's "Recommended for you" row.
- * No jobs/matching endpoint exists on the backend yet — this call
- * will simply 404 until one does. Callers should treat any failure
- * as "no recommendations yet" rather than a real error, so once a
- * real /jobs/recommended route is added on the backend, this starts
- * returning real data with zero changes needed on the frontend.
+ * Lists the signed-in company's own job postings.
+ * `status` is optional: 'draft' | 'active' | 'closed'. Omit for all.
+ */
+export const getMyJobs = async (status) => {
+  const { data } = await api.get('/jobs', { params: status ? { status } : undefined });
+  return data.data.jobs;
+};
+
+export const getJob = async (id) => {
+  const { data } = await api.get(`/jobs/${id}`);
+  return data.data.job;
+};
+
+/**
+ * Jobs are always sent as multipart/form-data now, since the posting
+ * form carries two optional PDF attachments (job description, company
+ * brochure). The plain job fields ride along as a single stringified
+ * `data` field; `files` is an optional { jobDescriptionPdf, companyBrochurePdf }
+ * map of File objects — only pass the ones the user actually picked.
+ */
+const buildJobForm = (jobData, files = {}) => {
+  const form = new FormData();
+  form.append('data', JSON.stringify(jobData));
+  if (files.jobDescriptionPdf) form.append('jobDescriptionPdf', files.jobDescriptionPdf);
+  if (files.companyBrochurePdf) form.append('companyBrochurePdf', files.companyBrochurePdf);
+  return form;
+};
+
+/**
+ * Creates a new job posting. `jobData.status` controls whether it's
+ * saved as a 'draft' (default, partial data OK) or 'active' (backend
+ * validates the listing is complete before publishing).
+ */
+export const createJob = async (jobData, files = {}) => {
+  const { data } = await api.post('/jobs', buildJobForm(jobData, files), {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return data.data.job;
+};
+
+/**
+ * Updates an existing job — same body shape as createJob. Also used
+ * to transition status (e.g. publish a draft by sending status: 'active',
+ * or close an active listing by sending status: 'closed').
+ */
+export const updateJob = async (id, jobData, files = {}) => {
+  const { data } = await api.patch(`/jobs/${id}`, buildJobForm(jobData, files), {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return data.data.job;
+};
+
+export const deleteJob = async (id) => {
+  const { data } = await api.delete(`/jobs/${id}`);
+  return data;
+};
+
+/**
+ * Recommended jobs for the candidate dashboard's "Recommended for you"
+ * row. No public/candidate-facing job listing endpoint exists on the
+ * backend yet — this call will 404 until one does. Treat any failure
+ * as "no recommendations yet" rather than a real error.
  */
 export const getRecommendedJobs = async () => {
   try {
@@ -267,20 +301,88 @@ export const getRecommendedJobs = async () => {
 };
 
 /* ══════════════════════════════════════════════════
-   GITHUB
+   JOBS (candidate side — browse, search & apply)
 ══════════════════════════════════════════════════ */
 
 /**
- * Fetches the signed-in candidate's top GitHub repos through our own
- * backend (which attaches a server-side token), instead of calling
- * api.github.com directly from the browser — that was capped at
- * 60 requests/hour per IP; this raises it to 5,000/hour.
- * Returns { repos, reason? } — reason is one of 'no-username',
- * 'not-found', or 'fetch-failed' when repos comes back empty.
+ * Searches/browses every active job listing.
+ * `filters` is optional: { q, employmentType, workplaceType, location }
  */
+export const searchJobs = async (filters = {}) => {
+  const params = {};
+  Object.entries(filters).forEach(([k, v]) => { if (v) params[k] = v; });
+  const { data } = await api.get('/jobs/public', { params });
+  return data.data.jobs;
+};
+
+export const getPublicJob = async (id) => {
+  const { data } = await api.get(`/jobs/public/${id}`);
+  return data.data.job;
+};
+
+/**
+ * Submits an application. `payload` carries the employer-question
+ * answers plus `consent` (bool) and `shareProfileAsResume` (bool).
+ * `resumeFile` is optional — pass it when the candidate uploaded their
+ * own resume instead of sharing their SkillSphere profile.
+ */
+export const applyToJob = async (jobId, payload, resumeFile = null) => {
+  const form = new FormData();
+  form.append('data', JSON.stringify(payload));
+  if (resumeFile) form.append('resume', resumeFile);
+  const { data } = await api.post(`/jobs/applications/${jobId}/apply`, form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return data.data.job;
+};
+
+export const getMyApplications = async () => {
+  const { data } = await api.get('/jobs/applications/mine');
+  return data.data.jobs;
+};
+
+/* ══════════════════════════════════════════════════
+   JOBS (company side — applicant pipeline)
+══════════════════════════════════════════════════ */
+
+/** Returns { job, applicants } for one of the company's own job postings. */
+export const getJobApplicants = async (jobId) => {
+  const { data } = await api.get(`/jobs/${jobId}/applicants`);
+  return data.data;
+};
+
+/**
+ * Fetches an applicant's full SkillSphere profile. Only valid when that
+ * applicant applied with resumeSource "profile" — otherwise use their
+ * resumeUrl (a resume file) instead, already present on the applicant object.
+ */
+export const getApplicantProfile = async (jobId, candidateId) => {
+  const { data } = await api.get(`/jobs/${jobId}/applicants/${candidateId}/profile`);
+  return data.data.profile;
+};
+
+/** status: 'new' | 'reviewed' | 'shortlisted' | 'interview' | 'hired' | 'rejected' */
+export const updateApplicantStatus = async (jobId, candidateId, status) => {
+  const { data } = await api.patch(`/jobs/${jobId}/applicants/${candidateId}/status`, { status });
+  return data.data;
+};
+
+/* ══════════════════════════════════════════════════
+   GITHUB
+══════════════════════════════════════════════════ */
+
 export const getGithubRepos = async () => {
   try {
     const { data } = await api.get('/github/repos');
+    return data.data;
+  } catch {
+    return { repos: [], reason: 'fetch-failed' };
+  }
+};
+
+export const refreshGithubRepos = async () => {
+  try {
+    const { data } = await api.post('/github/repos/refresh');
     return data.data;
   } catch {
     return { repos: [], reason: 'fetch-failed' };

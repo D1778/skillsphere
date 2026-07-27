@@ -1,25 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { LogoMark } from '../../components/shared/Topbar';
+import { useAuth } from '../../context/AuthContext';
+import { updateMe } from '../../services/api';
 
 // Icons
-const IconSatellite = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M13 7 9 3 5 7l4 4"/><path d="m17 11 4 4-4 4-4-4"/><path d="m8 12 4 4 6-6-4-4Z"/><path d="m16 8 3-3"/><path d="M9 21a6 6 0 0 0-6-6"/>
-  </svg>
-);
-const IconLocation = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
-  </svg>
-);
 const IconUsers = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-  </svg>
-);
-const IconSave = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
   </svg>
 );
 const IconEdit2 = () => (
@@ -42,21 +29,6 @@ const IconLock = () => (
     <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
   </svg>
 );
-const IconGlobe = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
-  </svg>
-);
-const IconBriefcase = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
-  </svg>
-);
-const IconCalendar = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
-  </svg>
-);
 const IconLinkedin = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/>
@@ -67,65 +39,11 @@ const IconTwitter = () => (
     <path d="M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.6 5.6 4.1 9 4-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.2z"/>
   </svg>
 );
-const IconSearch = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-  </svg>
-);
-
 const IconCamera = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>
   </svg>
 );
-
-// Custom Select Component
-const CustomSelect = ({ name, value, options, onChange, className = "w-full", placement = "bottom" }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const containerRef = useRef(null);
-
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (containerRef.current && !containerRef.current.contains(event.target)) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  return (
-    <div className={`relative ${className}`} ref={containerRef}>
-      <div 
-        onClick={() => setIsOpen(!isOpen)}
-        className={`flex items-center justify-between cursor-pointer w-full bg-[var(--card-inner-bg)] hover:bg-[var(--bg-card)] border ${isOpen ? 'border-purple-500/60 ring-2 ring-purple-500/60' : 'border-[var(--border-card)]'} rounded-xl px-4 py-3.5 text-[var(--text-primary)] font-sans text-[0.95rem] transition-all`}
-      >
-        <span>{value || 'Select option...'}</span>
-        <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 text-[var(--text-secondary)] transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
-      </div>
-      {isOpen && (
-        <div className={`absolute left-0 z-[100] w-full bg-[var(--bg-panel)] border border-[var(--border-card)] rounded-xl shadow-2xl overflow-hidden py-1.5 ${placement === 'top' ? 'bottom-full mb-2' : 'top-full mt-2'}`}>
-          <ul className="max-h-40 overflow-y-auto custom-scrollbar">
-            {options.map((opt) => (
-              <li 
-                key={opt} 
-                onClick={() => {
-                  onChange({ target: { name, value: opt } });
-                  setIsOpen(false);
-                }}
-                className={`px-4 py-3 cursor-pointer font-sans text-[0.95rem] transition-colors ${value === opt ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 font-semibold' : 'text-[var(--text-primary)] hover:bg-[var(--card-inner-bg)] hover:text-purple-600 dark:hover:text-purple-400'}`}
-              >
-                {opt}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </div>
-  );
-};
 
 const ProfileField = ({ label, value, isEditing, children, colSpan = 1 }) => {
   return (
@@ -137,9 +55,10 @@ const ProfileField = ({ label, value, isEditing, children, colSpan = 1 }) => {
 };
 
 export default function CompanyProfilePage() {
+  const { user, setUser } = useAuth();
+
   const [activeSection, setActiveSection] = useState('account');
   const [isEditing, setIsEditing] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
   const [profileImage, setProfileImage] = useState(null);
   const fileInputRef = useRef(null);
   const handlePhotoClick = () => fileInputRef.current?.click();
@@ -147,36 +66,57 @@ export default function CompanyProfilePage() {
     const file = e.target.files?.[0];
     if (file) setProfileImage(URL.createObjectURL(file));
   };
-  
-  const [formData, setFormData] = useState({
-    companyName: 'Nebula Labs',
-    email: 'you@example.com',
-    password: 'password123',
-    website: 'https://nebulalabs.io',
-    location: 'San Francisco, CA',
-    industry: 'Technology',
-    companySize: '51-200 employees',
-    foundedYear: '2019',
-    description: 'We are a forward-thinking technology company building the next generation of cloud infrastructure tools.',
-    linkedin: 'linkedin.com/company/nebulalabs',
-    twitter: '@nebulalabs'
-  });
+
+  // Company Name + Social Links are the only editable fields left on this
+  // page. Social links start empty on purpose — signup never collects
+  // them, so there's nothing to prefill until the company adds them here.
+  const [formData, setFormData] = useState({ companyName: '', linkedin: '', twitter: '' });
+
+  // Keep the form in sync with whatever's actually saved, and reset it
+  // to that same baseline whenever editing is cancelled.
+  const syncFromUser = () => {
+    setFormData({
+      companyName: user?.displayName || '',
+      linkedin:    user?.socialLinks?.linkedin || '',
+      twitter:     user?.socialLinks?.twitter  || '',
+    });
+  };
+  useEffect(() => { syncFromUser(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [user]);
 
   const [showToast, setShowToast] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
 
   const sections = [
-    { id: 'account', title: 'Account Settings', icon: IconLock, color: 'text-indigo-400', bg: 'bg-indigo-500' },
-    { id: 'identity', title: 'Company Identity', icon: IconGlobe, color: 'text-emerald-400', bg: 'bg-emerald-500' },
-    { id: 'about', title: 'About Us', icon: IconBriefcase, color: 'text-purple-400', bg: 'bg-purple-500' },
-    { id: 'social', title: 'Social Links', icon: IconUsers, color: 'text-sky-400', bg: 'bg-sky-500' }
+    { id: 'account', title: 'Account Settings', icon: IconLock,  color: 'text-indigo-400', bg: 'bg-indigo-500' },
+    { id: 'social',  title: 'Social Links',      icon: IconUsers, color: 'text-sky-400',    bg: 'bg-sky-500' },
   ];
 
   const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
-  const handleSave = () => {
+  const handleCancel = () => {
+    syncFromUser();
+    setSaveError('');
     setIsEditing(false);
-    setShowToast(true);
-    setTimeout(() => setShowToast(false), 3000);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    setSaveError('');
+    try {
+      const updated = await updateMe({
+        companyName: formData.companyName,
+        socialLinks: { linkedin: formData.linkedin, twitter: formData.twitter },
+      });
+      setUser(updated);
+      setIsEditing(false);
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 3000);
+    } catch (err) {
+      setSaveError(err?.response?.data?.message || 'Could not save changes. Please try again.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const InputWrapper = ({ icon, children }) => (
@@ -190,7 +130,7 @@ export default function CompanyProfilePage() {
 
   return (
     <div className="w-full flex flex-col gap-6 pb-12">
-        
+
         {/* Toast Notification */}
         {showToast && (
           <div className="fixed top-24 right-6 sm:right-10 z-[200] animate-[fade-in_0.3s_ease-out] bg-[var(--bg-card)] border border-[var(--border-card)] px-4 py-3 rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.12)] flex items-center gap-3">
@@ -209,20 +149,18 @@ export default function CompanyProfilePage() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sm:gap-0 mb-4 mt-0">
           <div className="flex flex-col">
-            <div className="mb-1 min-h-[20px]"></div>
             <div className="text-2xl sm:text-3xl font-extrabold text-[var(--text-primary)] font-sans flex items-center gap-2 tracking-tight leading-tight">
               Company Profile
             </div>
             <p className="font-sans text-[0.95rem] text-[var(--text-secondary)] mt-1.5 font-medium">Manage your company details and public presence.</p>
           </div>
-
         </div>
 
         {/* Top Banner - Glassmorphic */}
         <div className="w-full bg-[var(--bg-card)] border border-[var(--border-card)] rounded-2xl p-6 md:p-8 flex flex-col sm:flex-row items-center sm:items-start gap-6 relative overflow-hidden group shadow-sm">
           {/* Decorative glowing blobs */}
           <div className="absolute top-0 left-0 w-[300px] h-[300px] bg-indigo-500/10 rounded-full blur-[80px] -translate-x-1/2 -translate-y-1/2 pointer-events-none"></div>
-          
+
           <div className="relative z-10 shrink-0 group/avatar cursor-pointer" onClick={handlePhotoClick}>
             <input type="file" ref={fileInputRef} onChange={handlePhotoChange} className="hidden" accept="image/*" />
             <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-[0_0_20px_rgba(99,102,241,0.2)] overflow-hidden border border-[var(--border-card)] relative transition-transform duration-300 group-hover/avatar:scale-105">
@@ -242,14 +180,11 @@ export default function CompanyProfilePage() {
 
           <div className="relative z-10 flex flex-col items-center sm:items-start gap-1 mt-2 text-center sm:text-left flex-1">
             <h2 className="font-sans text-xl sm:text-2xl font-extrabold text-[var(--text-primary)] tracking-tight drop-shadow-sm">{formData.companyName || 'Company Name'}</h2>
-            <p className="font-sans text-[0.95rem] text-indigo-500 dark:text-indigo-400 font-semibold tracking-wide flex items-center gap-1.5 justify-center sm:justify-start">
-               <IconBriefcase /> {formData.industry || 'Technology'}
-            </p>
             <p className="font-sans text-[0.85rem] text-[var(--text-secondary)] mt-1 flex items-center gap-1.5 justify-center sm:justify-start font-medium">
-              <span><IconLocation /></span> {formData.location || 'Location Not Set'}
+              <span><IconMail /></span> {user?.email || '—'}
             </p>
           </div>
-          
+
           <div className="relative z-10 hidden lg:flex flex-col items-end gap-2 self-center mr-2">
              <div className="text-right">
                <div className="font-sans text-[0.75rem] font-bold text-[var(--text-secondary)] uppercase tracking-widest mb-1">Status</div>
@@ -262,8 +197,6 @@ export default function CompanyProfilePage() {
 
         {/* Tab Navigation Row */}
         <div className="w-full flex items-center gap-4 mb-2">
-
-          {/* Chips container with flex-wrap to prevent scrolling */}
           <div className="flex flex-wrap items-center gap-2 w-full">
             {sections.map(section => {
               const isActive = activeSection === section.id;
@@ -275,8 +208,8 @@ export default function CompanyProfilePage() {
                     if (!isEditing) setActiveSection(section.id);
                   }}
                   className={`flex items-center gap-2 px-3 py-1.5 rounded-lg font-sans text-[0.85rem] font-bold transition-all duration-300 shrink-0 ${
-                    isActive 
-                      ? `${section.bg} text-white shadow-md` 
+                    isActive
+                      ? `${section.bg} text-white shadow-md`
                       : `bg-[var(--card-inner-bg)] text-[var(--text-primary)] border border-[var(--border-card)] ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[var(--bg-card)] hover:border-purple-500/30'}`
                   }`}
                 >
@@ -291,8 +224,11 @@ export default function CompanyProfilePage() {
         </div>
 
         <div className="w-full">
-          
-          {/* Section 1: Account Settings */}
+
+          {/* Section 1: Account Settings — just Company Name + Contact
+              Email now. Password lives with Firebase auth (forgot-password
+              flow), not here, so it's gone; Contact Email is the sign-in
+              email itself and isn't editable from this page. */}
           {activeSection === 'account' && (
             <div className="bg-[var(--bg-card)] border border-[var(--border-card)] rounded-2xl p-6 sm:p-8 shadow-sm animate-in fade-in zoom-in-95 duration-300 relative overflow-hidden">
               <div className="flex items-center justify-between mb-6 pb-4 border-b border-[var(--border-card)] relative z-10">
@@ -300,110 +236,37 @@ export default function CompanyProfilePage() {
                    <div className="p-1.5 rounded-md bg-indigo-500/10 text-indigo-500 dark:text-indigo-400 border border-indigo-500/20"><IconLock /></div> Account Settings
                  </h3>
                  <div className="flex items-center gap-3">
+                   {saveError && <span className="font-sans text-[0.78rem] text-red-400">{saveError}</span>}
                    {isEditing ? (
                       <>
-                        <button onClick={() => setIsEditing(false)} className="px-3 py-1.5 rounded-lg bg-transparent border border-[var(--border-card)] text-[var(--text-secondary)] font-sans text-[0.8rem] font-semibold hover:bg-[var(--card-inner-bg)] hover:text-[var(--text-primary)] transition-all">Cancel</button>
-                        <button onClick={handleSave} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-indigo-500 text-white font-sans text-[0.8rem] font-semibold shadow-md hover:bg-indigo-600 transition-all">Save changes</button>
+                        <button onClick={handleCancel} disabled={saving} className="px-3 py-1.5 rounded-lg bg-transparent border border-[var(--border-card)] text-[var(--text-secondary)] font-sans text-[0.8rem] font-semibold hover:bg-[var(--card-inner-bg)] hover:text-[var(--text-primary)] transition-all disabled:opacity-50">Cancel</button>
+                        <button onClick={handleSave} disabled={saving} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-indigo-500 text-white font-sans text-[0.8rem] font-semibold shadow-md hover:bg-indigo-600 transition-all disabled:opacity-60">{saving ? 'Saving…' : 'Save changes'}</button>
                       </>
                    ) : (
                       <button onClick={() => setIsEditing(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-500/10 text-indigo-500 dark:text-indigo-400 font-sans font-bold text-[0.8rem] border border-indigo-500/20 hover:bg-indigo-500/20 transition-all">Edit <IconEdit2/></button>
                    )}
                  </div>
               </div>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative z-10">
                 <ProfileField label="Company Name" value={formData.companyName} isEditing={isEditing}>
                   <InputWrapper icon={<IconBuilding />}>
                     <input type="text" name="companyName" value={formData.companyName} onChange={handleChange} className="w-full bg-[var(--card-inner-bg)] border border-[var(--border-card)] rounded-xl pl-11 pr-4 py-3 text-[var(--text-primary)] font-sans text-[0.95rem] focus:outline-none focus:border-purple-500/60 focus:ring-2 focus:ring-purple-500/60 transition-all" />
                   </InputWrapper>
                 </ProfileField>
-                <ProfileField label="Contact Email" value={formData.email} isEditing={isEditing}>
-                  <InputWrapper icon={<IconMail />}>
-                    <input type="email" name="email" value={formData.email} onChange={handleChange} className="w-full bg-[var(--card-inner-bg)] border border-[var(--border-card)] rounded-xl pl-11 pr-4 py-3 text-[var(--text-primary)] font-sans text-[0.95rem] focus:outline-none focus:border-purple-500/60 focus:ring-2 focus:ring-purple-500/60 transition-all" />
-                  </InputWrapper>
-                </ProfileField>
-                <ProfileField label="Password" value={isEditing ? formData.password : '••••••••••••'} isEditing={isEditing}>
-                  <InputWrapper icon={<IconLock />}>
-                    <input type="password" name="password" value={formData.password} onChange={handleChange} className="w-full bg-[var(--card-inner-bg)] border border-[var(--border-card)] rounded-xl pl-11 pr-4 py-3 text-[var(--text-primary)] font-sans text-[0.95rem] focus:outline-none focus:border-purple-500/60 focus:ring-2 focus:ring-purple-500/60 transition-all" />
-                  </InputWrapper>
-                </ProfileField>
+                <div className="flex flex-col gap-1.5 bg-[var(--card-inner-bg)] border border-[var(--border-card)] p-4 rounded-xl">
+                  <label className="font-sans text-[0.75rem] font-semibold uppercase tracking-widest text-indigo-400/80">Contact Email</label>
+                  <p className="font-sans text-[0.95rem] font-medium text-[var(--text-primary)] flex items-center gap-2">
+                    <span className="text-[var(--text-muted)]"><IconMail /></span> {user?.email || '—'}
+                  </p>
+                  <p className="font-sans text-[0.72rem] text-[var(--text-muted)] mt-0.5">This is your sign-in email and can't be changed here.</p>
+                </div>
               </div>
             </div>
           )}
 
-          {/* Section 2: Company Identity */}
-          {activeSection === 'identity' && (
-            <div className="bg-[var(--bg-card)] border border-[var(--border-card)] rounded-2xl p-6 sm:p-8 shadow-sm animate-in fade-in zoom-in-95 duration-300 relative overflow-hidden">
-              <div className="flex items-center justify-between mb-6 pb-4 border-b border-[var(--border-card)] relative z-10">
-                 <h3 className="text-lg font-bold text-[var(--text-primary)] font-sans flex items-center gap-2">
-                   <div className="p-1.5 rounded-md bg-emerald-500/10 text-emerald-500 dark:text-emerald-400 border border-emerald-500/20"><IconGlobe /></div> Company Identity
-                 </h3>
-                 <div className="flex items-center gap-3">
-                   {isEditing ? (
-                      <>
-                        <button onClick={() => setIsEditing(false)} className="px-3 py-1.5 rounded-lg bg-transparent border border-[var(--border-card)] text-[var(--text-secondary)] font-sans text-[0.8rem] font-semibold hover:bg-[var(--card-inner-bg)] hover:text-[var(--text-primary)] transition-all">Cancel</button>
-                        <button onClick={handleSave} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500 text-white font-sans text-[0.8rem] font-semibold shadow-md hover:bg-emerald-600 transition-all">Save changes</button>
-                      </>
-                   ) : (
-                      <button onClick={() => setIsEditing(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-500 dark:text-emerald-400 font-sans font-bold text-[0.8rem] border border-emerald-500/20 hover:bg-emerald-500/20 transition-all">Edit <IconEdit2/></button>
-                   )}
-                 </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative z-10">
-                <ProfileField label="Website URL" value={formData.website} isEditing={isEditing}>
-                  <InputWrapper icon={<IconGlobe />}>
-                    <input type="url" name="website" value={formData.website} onChange={handleChange} className="w-full bg-[var(--card-inner-bg)] border border-[var(--border-card)] rounded-xl pl-11 pr-4 py-3 text-[var(--text-primary)] font-sans text-[0.95rem] focus:outline-none focus:border-purple-500/60 focus:ring-2 focus:ring-purple-500/60 transition-all" />
-                  </InputWrapper>
-                </ProfileField>
-                <ProfileField label="Headquarters / Location" value={formData.location} isEditing={isEditing}>
-                  <InputWrapper icon={<IconLocation />}>
-                    <input type="text" name="location" value={formData.location} onChange={handleChange} className="w-full bg-[var(--card-inner-bg)] border border-[var(--border-card)] rounded-xl pl-11 pr-4 py-3 text-[var(--text-primary)] font-sans text-[0.95rem] focus:outline-none focus:border-purple-500/60 focus:ring-2 focus:ring-purple-500/60 transition-all" />
-                  </InputWrapper>
-                </ProfileField>
-                <ProfileField label="Industry" value={formData.industry} isEditing={isEditing}>
-                  <CustomSelect name="industry" value={formData.industry} onChange={handleChange} options={['Technology', 'Healthcare', 'Finance', 'Education', 'E-commerce', 'Entertainment', 'Manufacturing']} />
-                </ProfileField>
-                <ProfileField label="Company Size" value={formData.companySize} isEditing={isEditing}>
-                  <CustomSelect name="companySize" value={formData.companySize} onChange={handleChange} options={['1-10 employees', '11-50 employees', '51-200 employees', '201-500 employees', '500+ employees']} />
-                </ProfileField>
-                <ProfileField label="Founded Year" value={formData.foundedYear} isEditing={isEditing}>
-                  <InputWrapper icon={<IconCalendar />}>
-                    <input type="text" name="foundedYear" value={formData.foundedYear} onChange={handleChange} className="w-full bg-[var(--card-inner-bg)] border border-[var(--border-card)] rounded-xl pl-11 pr-4 py-3 text-[var(--text-primary)] font-sans text-[0.95rem] focus:outline-none focus:border-purple-500/60 focus:ring-2 focus:ring-purple-500/60 transition-all" />
-                  </InputWrapper>
-                </ProfileField>
-              </div>
-            </div>
-          )}
-
-          {/* Section 3: About Us */}
-          {activeSection === 'about' && (
-            <div className="bg-[var(--bg-card)] border border-[var(--border-card)] rounded-2xl p-6 sm:p-8 shadow-sm animate-in fade-in zoom-in-95 duration-300 relative overflow-hidden">
-              <div className="flex items-center justify-between mb-6 pb-4 border-b border-[var(--border-card)] relative z-10">
-                 <h3 className="text-lg font-bold text-[var(--text-primary)] font-sans flex items-center gap-2">
-                   <div className="p-1.5 rounded-md bg-purple-500/10 text-purple-500 dark:text-purple-400 border border-purple-500/20"><IconBriefcase /></div> About Us
-                 </h3>
-                 <div className="flex items-center gap-3">
-                   {isEditing ? (
-                      <>
-                        <button onClick={() => setIsEditing(false)} className="px-3 py-1.5 rounded-lg bg-transparent border border-[var(--border-card)] text-[var(--text-secondary)] font-sans text-[0.8rem] font-semibold hover:bg-[var(--card-inner-bg)] hover:text-[var(--text-primary)] transition-all">Cancel</button>
-                        <button onClick={handleSave} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-purple-500 text-white font-sans text-[0.8rem] font-semibold shadow-md hover:bg-purple-600 transition-all">Save changes</button>
-                      </>
-                   ) : (
-                      <button onClick={() => setIsEditing(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-500/10 text-purple-500 dark:text-purple-400 font-sans font-bold text-[0.8rem] border border-purple-500/20 hover:bg-purple-500/20 transition-all">Edit <IconEdit2/></button>
-                   )}
-                 </div>
-              </div>
-              
-              <div className="relative z-10">
-                <ProfileField label="Company Description" value={formData.description} isEditing={isEditing} colSpan={2}>
-                  <textarea name="description" value={formData.description} onChange={handleChange} rows="5" className="w-full bg-[var(--card-inner-bg)] border border-[var(--border-card)] rounded-xl p-4 text-[var(--text-primary)] font-sans text-[0.95rem] focus:outline-none focus:border-purple-500/60 focus:ring-2 focus:ring-purple-500/60 transition-all resize-y" />
-                </ProfileField>
-              </div>
-            </div>
-          )}
-
-          {/* Section 4: Social Links */}
+          {/* Section 2: Social Links — empty until the company fills them
+              in; signup never collects these. */}
           {activeSection === 'social' && (
             <div className="bg-[var(--bg-card)] border border-[var(--border-card)] rounded-2xl p-6 sm:p-8 shadow-sm animate-in fade-in zoom-in-95 duration-300 relative overflow-hidden">
               <div className="flex items-center justify-between mb-6 pb-4 border-b border-[var(--border-card)] relative z-10">
@@ -411,10 +274,11 @@ export default function CompanyProfilePage() {
                    <div className="p-1.5 rounded-md bg-sky-500/10 text-sky-500 dark:text-sky-400 border border-sky-500/20"><IconUsers /></div> Social Links
                  </h3>
                  <div className="flex items-center gap-3">
+                   {saveError && <span className="font-sans text-[0.78rem] text-red-400">{saveError}</span>}
                    {isEditing ? (
                       <>
-                        <button onClick={() => setIsEditing(false)} className="px-3 py-1.5 rounded-lg bg-transparent border border-[var(--border-card)] text-[var(--text-secondary)] font-sans text-[0.8rem] font-semibold hover:bg-[var(--card-inner-bg)] hover:text-[var(--text-primary)] transition-all">Cancel</button>
-                        <button onClick={handleSave} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-sky-500 text-white font-sans text-[0.8rem] font-semibold shadow-md hover:bg-sky-600 transition-all">Save changes</button>
+                        <button onClick={handleCancel} disabled={saving} className="px-3 py-1.5 rounded-lg bg-transparent border border-[var(--border-card)] text-[var(--text-secondary)] font-sans text-[0.8rem] font-semibold hover:bg-[var(--card-inner-bg)] hover:text-[var(--text-primary)] transition-all disabled:opacity-50">Cancel</button>
+                        <button onClick={handleSave} disabled={saving} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-sky-500 text-white font-sans text-[0.8rem] font-semibold shadow-md hover:bg-sky-600 transition-all disabled:opacity-60">{saving ? 'Saving…' : 'Save changes'}</button>
                       </>
                    ) : (
                       <button onClick={() => setIsEditing(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-500/10 text-sky-500 dark:text-sky-400 font-sans font-bold text-[0.8rem] border border-sky-500/20 hover:bg-sky-500/20 transition-all">Edit <IconEdit2/></button>
@@ -425,12 +289,12 @@ export default function CompanyProfilePage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative z-10">
                 <ProfileField label="LinkedIn Profile" value={formData.linkedin} isEditing={isEditing}>
                   <InputWrapper icon={<span className="text-[#0077b5]"><IconLinkedin /></span>}>
-                    <input type="text" name="linkedin" value={formData.linkedin} onChange={handleChange} className="w-full bg-[var(--card-inner-bg)] border border-[var(--border-card)] rounded-xl pl-11 pr-4 py-3 text-[var(--text-primary)] font-sans text-[0.95rem] focus:outline-none focus:border-[#0077b5]/60 focus:ring-2 focus:ring-[#0077b5]/60 transition-all" />
+                    <input type="text" name="linkedin" value={formData.linkedin} onChange={handleChange} placeholder="linkedin.com/company/yourcompany" className="w-full bg-[var(--card-inner-bg)] border border-[var(--border-card)] rounded-xl pl-11 pr-4 py-3 text-[var(--text-primary)] placeholder-[var(--text-muted)] font-sans text-[0.95rem] focus:outline-none focus:border-[#0077b5]/60 focus:ring-2 focus:ring-[#0077b5]/60 transition-all" />
                   </InputWrapper>
                 </ProfileField>
                 <ProfileField label="Twitter Profile" value={formData.twitter} isEditing={isEditing}>
                   <InputWrapper icon={<span className="text-[#1DA1F2]"><IconTwitter /></span>}>
-                    <input type="text" name="twitter" value={formData.twitter} onChange={handleChange} className="w-full bg-[var(--card-inner-bg)] border border-[var(--border-card)] rounded-xl pl-11 pr-4 py-3 text-[var(--text-primary)] font-sans text-[0.95rem] focus:outline-none focus:border-[#1DA1F2]/60 focus:ring-2 focus:ring-[#1DA1F2]/60 transition-all" />
+                    <input type="text" name="twitter" value={formData.twitter} onChange={handleChange} placeholder="@yourcompany" className="w-full bg-[var(--card-inner-bg)] border border-[var(--border-card)] rounded-xl pl-11 pr-4 py-3 text-[var(--text-primary)] placeholder-[var(--text-muted)] font-sans text-[0.95rem] focus:outline-none focus:border-[#1DA1F2]/60 focus:ring-2 focus:ring-[#1DA1F2]/60 transition-all" />
                   </InputWrapper>
                 </ProfileField>
               </div>

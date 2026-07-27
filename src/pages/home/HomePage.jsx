@@ -1414,36 +1414,7 @@ function SectionDivider() {
    ROOT
 ═══════════════════════════════════════════════════════ */
 export default function HomePage() {
-  const [isDark, setIsDark] = useState(true);
-  
-  useEffect(() => {
-    // Listen to system preference changes
-    const mq = window.matchMedia('(prefers-color-scheme: light)');
-    const apply = (e) => {
-      const dark = !e.matches;
-      setIsDark(dark);
-      document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
-    };
-    apply(mq);
-    mq.addEventListener('change', apply);
-    
-    // Listen to data-theme attribute changes (from navbar toggle)
-    const observer = new MutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        if (mutation.attributeName === 'data-theme') {
-          const theme = document.documentElement.getAttribute('data-theme');
-          setIsDark(theme === 'dark');
-        }
-      });
-    });
-    
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-    
-    return () => {
-      mq.removeEventListener('change', apply);
-      observer.disconnect();
-    };
-  }, []);
+  const { isDark } = useTheme();
 
   return (
     <>

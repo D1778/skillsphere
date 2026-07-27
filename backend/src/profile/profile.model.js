@@ -141,6 +141,16 @@ const ProfileSchema = new mongoose.Schema(
       recruiter: { type: Boolean, default: false },
     },
 
+    /* ── GitHub repos cache ──
+       Populated once on the first fetch (or via the dashboard's refresh
+       button), then served straight from here on every subsequent load —
+       that's what keeps every dashboard visit/sign-in from spending a
+       GitHub API call. Only the refresh button ever hits GitHub again. */
+    githubCache: {
+      repos:     { type: [mongoose.Schema.Types.Mixed], default: [] },
+      fetchedAt: { type: Date, default: null },
+    },
+
     /* ── Completion ── */
     isComplete:     { type: Boolean, default: false },
     lastAutosavedAt: { type: Date,   default: null  },

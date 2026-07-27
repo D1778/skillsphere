@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { NavLink, Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
+import { signout } from '../../services/api';
 
 /* ─── Inline SVG icons ─── */
 const IconDashboard = () => (
@@ -11,11 +13,6 @@ const IconDashboard = () => (
 const IconJobs = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/>
-  </svg>
-);
-const IconSkills = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
   </svg>
 );
 const IconPeople = () => (
@@ -79,11 +76,12 @@ const IconMenuToggle = ({ isOpen }) => (
 
 export default function Sidebar({ role = 'Candidate', isExpanded, setIsExpanded }) {
   const navigate = useNavigate();
+  const { user, setUser } = useAuth();
+  const [photoError, setPhotoError] = useState(false);
 
   const CANDIDATE_NAV = [
     { to: '/dashboard/candidate', icon: <IconDashboard />, label: 'Dashboard' },
     { to: '/jobs',                icon: <IconJobs />,      label: 'Jobs' },
-    { to: '/skills',              icon: <IconSkills />,    label: 'Skills' },
     { to: '/roadmap',             icon: <IconPeople />,    label: 'Career Roadmap' },
     { to: '/analytics',           icon: <IconChart />,     label: 'Analytics' },
     { to: '/profile',             icon: <IconProfile />,   label: 'Profile'   },
@@ -99,11 +97,20 @@ export default function Sidebar({ role = 'Candidate', isExpanded, setIsExpanded 
 
   const NAV_ITEMS = role === 'Recruiter' ? RECRUITER_NAV : CANDIDATE_NAV;
 
+  // Real signed-in user, not a hardcoded placeholder. Falls back to the
+  // generic role label only in the brief window before /me resolves.
+  const displayName = user?.displayName?.trim() || (role === 'Recruiter' ? 'Company account' : 'Candidate account');
+  const roleLabel = user?.role === 'company' ? 'Company' : user?.role === 'candidate' ? 'Candidate' : role;
+  const initials = displayName
+    .split(' ').filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase()).join('') || (role === 'Recruiter' ? 'HR' : 'US');
 
-  const handleLogout = () => {
-    localStorage.removeItem('accessToken');
+  const handleLogout = async () => {
+    try { await signout(); } catch { /* tokens are cleared locally either way */ }
+    setUser(null);
     navigate('/signin');
   };
+
+  useEffect(() => { setPhotoError(false); }, [user?.photoURL]);
 
   return (
     <>
@@ -170,20 +177,29 @@ export default function Sidebar({ role = 'Candidate', isExpanded, setIsExpanded 
       <div className="w-full p-2 flex flex-col gap-1.5 mt-auto">
         <div className="w-[calc(100%-24px)] mx-3 my-1 h-px bg-[var(--divider)] shrink-0" />
 
-        {/* User row */}
-        <div className="flex items-center gap-3 p-2.5 rounded-lg transition-colors hover:bg-gray-500/5 whitespace-nowrap overflow-hidden">
-          <div className="shrink-0 w-[34px] h-[34px] rounded-lg bg-gradient-to-br from-cyan-400 to-sky-500 flex items-center justify-center text-white font-sans text-sm font-bold shadow-[0_4px_12px_rgba(34,211,238,0.3)]">
-            {role === 'Recruiter' ? 'HR' : 'AM'}
+        {/* User row — links to the account page. Shows the real signed-in
+            user's photo when they have one, falling back to initials. */}
+        <Link
+          to="/account"
+          onClick={() => { if (window.innerWidth < 640) setIsExpanded(false); }}
+          className="flex items-center gap-3 p-2.5 rounded-lg transition-colors hover:bg-gray-500/5 whitespace-nowrap overflow-hidden no-underline"
+        >
+          <div className="shrink-0 w-[34px] h-[34px] rounded-lg bg-gradient-to-br from-cyan-400 to-sky-500 flex items-center justify-center text-white font-sans text-sm font-bold shadow-[0_4px_12px_rgba(34,211,238,0.3)] overflow-hidden">
+            {user?.photoURL && !photoError ? (
+              <img src={user.photoURL} alt={displayName} onError={() => setPhotoError(true)} className="w-full h-full object-cover" />
+            ) : (
+              initials
+            )}
           </div>
           <div className={`flex flex-col transition-all duration-200 group-hover/sidebar:opacity-100 group-hover/sidebar:translate-x-0 sm:group-hover/sidebar:opacity-100 sm:group-hover/sidebar:translate-x-0 ${isExpanded ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-1'}`}>
-            <span className="font-sans text-[0.83rem] font-medium tracking-tight text-white">
-              {role === 'Recruiter' ? 'HR Manager' : 'Aarav M.'}
+            <span className="font-sans text-[0.83rem] font-medium tracking-tight text-white truncate max-w-[130px]">
+              {displayName}
             </span>
             <span className="text-[0.72rem] text-gray-400 font-medium tracking-wide">
-              {role}
+              {roleLabel}
             </span>
           </div>
-        </div>
+        </Link>
 
         {/* Logout */}
         <button className="flex items-center gap-3.5 w-full p-3 rounded-lg text-red-400 no-underline transition-all cursor-pointer border border-transparent bg-transparent hover:bg-red-400/10 hover:text-red-300 group/logout" onClick={handleLogout}>

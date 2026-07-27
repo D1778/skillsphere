@@ -15,6 +15,14 @@ const UserSchema = new mongoose.Schema(
     clerkEmailAddressId: { type: String, default: null },
     lastLoginAt:         { type: Date,   default: null },
 
+    /* ── Company social links — signup never collects these, so they
+       start empty and the company fills them in later from the
+       Company Profile page's Social Links section. ── */
+    socialLinks: {
+      linkedin: { type: String, default: '' },
+      twitter:  { type: String, default: '' },
+    },
+
     /* ── NEW: gates routing after signup ── */
     profileCompleted: { type: Boolean, default: false },
   },
@@ -34,6 +42,7 @@ UserSchema.methods.toPublic = function () {
     photoURL:         this.photoURL,
     isVerified:       this.isVerified,
     provider:         this.provider,
+    socialLinks:      this.socialLinks,
     profileCompleted: this.profileCompleted,   // ← frontend needs this for routing
     createdAt:        this.createdAt,
     lastLoginAt:      this.lastLoginAt,

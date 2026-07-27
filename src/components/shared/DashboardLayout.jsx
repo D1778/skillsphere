@@ -5,7 +5,10 @@ export default function DashboardLayout({ children, role = 'Candidate', pageTitl
   const [isExpanded, setIsExpanded] = useState(false);
 
   return (
-    <div className="flex flex-col h-screen font-sans relative overflow-hidden group/layout">
+    <div
+      className="flex flex-col h-screen font-sans relative overflow-hidden group/layout"
+      style={{ '--sidebar-w': isExpanded ? '200px' : '64px' }}
+    >
       {/* Background Glows */}
       <div className="fixed top-[-100px] right-[-100px] w-[500px] h-[500px] rounded-full bg-[radial-gradient(circle,rgba(56,189,248,0.10)_0%,transparent_70%)] pointer-events-none z-0"></div>
       <div className="fixed bottom-[-80px] left-[80px] w-[360px] h-[360px] rounded-full bg-[radial-gradient(circle,rgba(6,182,212,0.07)_0%,transparent_70%)] pointer-events-none z-0"></div>

@@ -2,9 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LogoMark } from '../../components/shared/Topbar';
 import { useRoadmap, PHASE_COLORS } from '../../context/RoadmapContext';
+import { useJobs } from '../../context/JobsContext';
 import { getPhaseIcon, LEVEL_TAG } from '../../utils/roadmapTransform';
 import ApplicationModal from '../../components/modals/ApplicationModal';
-import { getMe, getProfile, getRecommendedJobs, getGithubRepos } from '../../services/api';
+import { getMe, getProfile, getRecommendedJobs, getGithubRepos, refreshGithubRepos } from '../../services/api';
 
 /* ==========================================================================
    READINESS SCORE
@@ -177,6 +178,25 @@ const IconStar = () => (
 const IconForkSmall = () => (
   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="12" cy="18" r="2.5"/><path d="M6 8.5v2A3.5 3.5 0 0 0 9.5 14H12M18 8.5v2A3.5 3.5 0 0 1 14.5 14H12m0 0v2"/></svg>
 );
+const IconRefresh = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+  </svg>
+);
+
+/* Relative-time label for the GitHub cache's fetchedAt, e.g. "Synced 5m ago" */
+const timeAgo = (iso) => {
+  if (!iso) return null;
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 1)  return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
+};
 
 function SectionHeader({ icon, title, action }) {
   return (
@@ -200,6 +220,7 @@ function SectionHeader({ icon, title, action }) {
    ========================================================================== */
 
 function WelcomeBanner({ userName = 'Aarav' }) {
+  const navigate = useNavigate();
   const getGreeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) return 'Good morning';
@@ -241,6 +262,7 @@ function WelcomeBanner({ userName = 'Aarav' }) {
             className="inline-flex items-center gap-2 text-white font-semibold font-sans text-[0.9rem] py-2.5 px-4.5 rounded-xl transition-all hover:-translate-y-0.5"
             style={{ background: 'linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%)', boxShadow: '0 4px 16px rgba(6,182,212,0.28)' }}
             id="wb-explore-jobs"
+            onClick={() => navigate('/jobs')}
           >
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>
             Explore jobs
@@ -399,20 +421,45 @@ function HeroStatsPanel({ score, stats, extraStats = [], skillMix = [] }) {
 /* Pulls the user's top 5 most-recently-pushed public repos via our own
    backend's /api/github/repos endpoint, which attaches a server-side
    GitHub token — see github.service.js. No username needs to be passed
-   from here; the backend reads it off the signed-in user's own profile. */
+   from here; the backend reads it off the signed-in user's own profile.
+
+   Cache-first: the backend serves this from the DB after the first-ever
+   fetch, so this normal load never spends a GitHub API call. The little
+   refresh button is the only thing that forces a live re-fetch. */
 function GithubReposCard() {
-  const [state, setState] = useState({ loading: true, error: null, repos: [] });
+  const [state, setState] = useState({ loading: true, error: null, repos: [], fetchedAt: null });
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshError, setRefreshError] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const { repos, reason } = await getGithubRepos();
-      if (!cancelled) setState({ loading: false, error: reason || null, repos: repos || [] });
+      const { repos, reason, fetchedAt } = await getGithubRepos();
+      if (!cancelled) setState({ loading: false, error: reason || null, repos: repos || [], fetchedAt: fetchedAt || null });
     })();
     return () => { cancelled = true; };
   }, []);
 
-  const { loading, error, repos } = state;
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    setRefreshError(null);
+    const { repos, reason, fetchedAt } = await refreshGithubRepos();
+    if (reason) {
+      // A rate-limit blip or a bad link shouldn't wipe out repos that
+      // were displaying fine a second ago — just surface the message
+      // and leave whatever was already on screen.
+      setRefreshError(
+        reason === 'no-username' ? 'Add your GitHub profile link in your profile first.' :
+        reason === 'not-found'   ? "Couldn't find a GitHub account for that link." :
+        "Couldn't refresh right now (GitHub may be rate-limiting)."
+      );
+    } else {
+      setState({ loading: false, error: null, repos: repos || [], fetchedAt: fetchedAt || null });
+    }
+    setRefreshing(false);
+  };
+
+  const { loading, error, repos, fetchedAt } = state;
 
   const EmptyState = ({ children }) => (
     <div className="flex flex-col items-center text-center gap-2 py-8">
@@ -431,7 +478,28 @@ function GithubReposCard() {
           to   { opacity: 1; transform: translateY(0); }
         }
       `}</style>
-      <SectionHeader icon={<IconGithub />} title="GitHub repositories" />
+      <SectionHeader
+        icon={<IconGithub />}
+        title="GitHub repositories"
+        action={
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing || loading}
+            title={fetchedAt ? `Last synced ${timeAgo(fetchedAt)}` : 'Fetch from GitHub'}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[var(--bg-card-hover)] border border-[var(--border-card)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-hover)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <span className={refreshing ? 'animate-spin' : ''}><IconRefresh /></span>
+            <span className="font-sans text-[0.75rem] font-semibold hidden sm:inline">{refreshing ? 'Syncing…' : 'Refresh'}</span>
+          </button>
+        }
+      />
+
+      {!loading && fetchedAt && (
+        <p className="font-sans text-[0.72rem] text-[var(--text-muted)] -mt-3 mb-3">Synced {timeAgo(fetchedAt)}</p>
+      )}
+      {refreshError && (
+        <p className="font-sans text-[0.78rem] text-amber-400 -mt-1 mb-3">{refreshError}</p>
+      )}
 
       {loading && (
         <p className="font-sans text-[0.85rem] text-[var(--text-muted)] text-center py-8">Loading repositories…</p>
@@ -662,38 +730,119 @@ function MatchRing({ pct, color }) {
   );
 }
 
+const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const fileUrl = (path) => (path ? (/^https?:\/\//.test(path) ? path : `${BASE_URL}${path}`) : null);
+
+// Falls back to the emoji placeholder if the logo URL 404s or is
+// otherwise unreachable, instead of showing the browser's broken-image icon.
+function CompanyLogo({ url, name, className }) {
+  const [failed, setFailed] = useState(false);
+  if (!url || failed) return <span className={className}>🏢</span>;
+  return <img src={fileUrl(url)} alt={name} className={className} onError={() => setFailed(true)} />;
+}
+
+function formatSalary(job) {
+  const { salary } = job;
+  if (!salary || (salary.min == null && salary.max == null)) return 'Competitive';
+  const currency = salary.currency || 'INR';
+  if (salary.min != null && salary.max != null) return `${currency} ${salary.min.toLocaleString()} – ${salary.max.toLocaleString()}`;
+  return `${currency} ${(salary.min ?? salary.max).toLocaleString()}+`;
+}
+
+function formatLocation(job) {
+  if (job.workplaceType === 'Remote') return 'Remote';
+  const parts = [job.city, job.state, job.country].filter(Boolean);
+  return parts.length ? parts.join(', ') : (job.workplaceType || 'Location TBD');
+}
+
+function deadlineLabel(job) {
+  if (!job.applicationDeadline) return null;
+  if (job.isExpired) return 'Applications closed';
+  const days = Math.ceil((new Date(job.applicationDeadline) - Date.now()) / 86400000);
+  if (days <= 0) return 'Closes today';
+  if (days === 1) return 'Closes tomorrow';
+  return `Closes in ${days}d`;
+}
+
 function JobCard({ job }) {
   const [showModal, setShowModal] = useState(false);
+  const closeBadge = deadlineLabel(job);
   return (
     <>
-      <div className="flex flex-col card-glass rounded-2xl p-6 ">
-        <div className="flex items-center gap-4 mb-4">
-          <div className="flex items-center justify-center w-12 h-12 rounded-xl shrink-0" style={{ background: job.logoBg }}><span className="font-sans text-[1.2rem] font-bold text-white">{job.logoLetter}</span></div>
-          <div className="flex flex-col flex-1"><div className="font-sans text-[0.95rem] font-semibold text-white">{job.role}</div><div className="font-sans text-[0.8rem] text-gray-400 mt-0.5">{job.company}</div></div>
-          <MatchRing pct={job.match} color={job.matchColor} />
+      <div className="job-card flex flex-col bg-[#0f172a]/60 border border-white/5 rounded-2xl p-5 hover:bg-[#151f38] hover:border-white/10 transition-all duration-300 shadow-lg group">
+
+        {/* Top Row: Logo, Title, Deadline badge */}
+        <div className="flex items-start justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-xl shadow-inner border border-white/5 overflow-hidden">
+              <CompanyLogo url={job.company?.logoUrl} name={job.company?.name} className="w-full h-full object-cover" />
+            </div>
+            <div>
+              <h3 className="font-sans text-[1.05rem] font-bold text-white tracking-wide">{job.title}</h3>
+              <p className="font-sans text-[0.9rem] text-gray-400 font-medium">{job.company?.name}</p>
+            </div>
+          </div>
+          {closeBadge && (
+            <span className={`shrink-0 px-2.5 py-1 rounded-full font-sans text-[0.7rem] font-bold uppercase tracking-wide ${job.isExpired ? 'text-red-400 bg-red-500/10 border border-red-500/20' : 'text-amber-400 bg-amber-500/10 border border-amber-500/20'}`}>
+              {closeBadge}
+            </span>
+          )}
         </div>
-        <p className="font-sans text-[0.85rem] text-gray-300 leading-relaxed mb-4">{job.desc}</p>
-        <div className="flex flex-wrap gap-2 mb-6">{job.tags.map((t) => <span key={t} className="font-sans text-[0.72rem] font-medium text-cyan-200 px-2 py-1 rounded" style={{ background: 'rgba(6,182,212,0.1)', border: '1px solid rgba(6,182,212,0.2)' }}>{t}</span>)}</div>
-        <div className="flex flex-col gap-2 pt-4 border-t border-white/5 mb-6">
-          <span className="flex items-center gap-2 font-sans text-[0.8rem] text-gray-400"><IconLocation /> {job.location}</span>
-          <span className="flex items-center gap-2 font-sans text-[0.8rem] text-gray-400"><IconClock /> {job.posted}</span>
-          <span className="flex items-center gap-2 font-sans text-[0.8rem] text-gray-400"><IconPeople /> {job.applicants} applied</span>
+
+        {/* Description */}
+        <p className="font-sans text-[0.85rem] text-gray-400 leading-relaxed mb-4 flex-1">
+          {job.jobSummary ? job.jobSummary.slice(0, 130) + (job.jobSummary.length > 130 ? '…' : '') : 'No summary provided.'}
+        </p>
+
+        {/* Tags */}
+        <div className="flex flex-wrap gap-2 mb-4">
+          {(job.skills || []).slice(0, 5).map(tag => (
+            <span key={tag} className="px-2.5 py-1 rounded-md bg-white/5 text-gray-300 font-sans text-[0.75rem] font-medium tracking-wide">
+              {tag}
+            </span>
+          ))}
         </div>
-        <div className="flex items-center justify-between mt-auto">
-          <span className="font-sans text-[0.95rem] font-bold text-white">{job.salary}</span>
-          <div className="flex items-center gap-2">
-            <button className="flex items-center justify-center w-9 h-9 rounded-lg bg-transparent border border-white/10 text-gray-400 cursor-pointer hover:bg-white/10 hover:text-white"><IconBookmark /></button>
-            <button
-              className="font-sans text-[0.8rem] font-semibold text-white rounded-lg px-4 py-2 transition-all hover:-translate-y-0.5"
-              style={{ background: 'linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%)', boxShadow: '0 4px 16px rgba(6,182,212,0.28)' }}
-              onClick={() => setShowModal(true)}
-            >
-              Apply
-            </button>
+
+        {/* Meta info */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-5 text-[0.75rem] font-sans text-gray-400 font-medium">
+          <div className="flex items-center gap-1.5"><IconLocation /> {formatLocation(job)}</div>
+          <div className="flex items-center gap-1.5"><IconClock /> {timeAgo(job.publishedAt) || 'Recently'}</div>
+          <div className="flex items-center gap-1.5"><IconPeople /> {job.applicantsCount || 0} applied</div>
+        </div>
+
+        {/* Bottom Row: Salary & Actions */}
+        <div className="flex items-center justify-between mt-auto pt-4 border-t border-white/5">
+          <span className="font-sans text-[0.95rem] font-bold text-cyan-400 tracking-wide drop-shadow-[0_0_8px_rgba(34,211,238,0.3)]">
+            {formatSalary(job)}
+          </span>
+
+          <div className="flex items-center gap-3">
+            {job.hasApplied ? (
+              <div className="px-3 py-1.5 rounded-full font-sans text-[0.75rem] font-bold tracking-widest uppercase border text-cyan-400 bg-cyan-500/10 border-cyan-500/20">
+                Applied
+              </div>
+            ) : (
+              <>
+                <button
+                  className="p-2 rounded-lg transition-all text-gray-400 hover:text-white hover:bg-white/5"
+                  aria-label="Bookmark"
+                >
+                  <IconBookmark />
+                </button>
+                <button
+                  onClick={() => setShowModal(true)}
+                  disabled={job.isExpired}
+                  className="font-sans text-[0.85rem] font-semibold text-white rounded-lg px-4 py-2 transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+                  style={{ background: 'linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%)', boxShadow: '0 4px 16px rgba(6,182,212,0.28)' }}
+                >
+                  Apply
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>
-      <ApplicationModal isOpen={showModal} onClose={() => setShowModal(false)} job={job} />
+      <ApplicationModal isOpen={showModal} onClose={() => setShowModal(false)} jobId={job.id} />
     </>
   );
 }
@@ -713,19 +862,22 @@ function RecommendedJobsRow() {
   }, []);
 
   return (
-    <div className="flex flex-col gap-6 mt-6 mb-10">
-      <div className="flex items-center justify-between">
-        <h3 className="font-sans text-[1.1rem] font-semibold text-gray-300">Recommended for you</h3>
-        <button
-          className="bg-transparent border-none text-cyan-400 font-sans text-[0.8rem] font-semibold uppercase cursor-pointer hover:text-cyan-300"
-          onClick={() => navigate('/jobs')}
-        >
-          See all jobs
-        </button>
-      </div>
+    <div className="flex flex-col w-full card-glass rounded-2xl p-6 mt-6 mb-10">
+      <SectionHeader
+        icon={<IconBriefcase />}
+        title="Recommended for you"
+        action={
+          <button
+            className="bg-transparent border-none text-cyan-400 font-sans text-[0.8rem] font-semibold uppercase cursor-pointer hover:text-cyan-300"
+            onClick={() => navigate('/jobs')}
+          >
+            See all jobs
+          </button>
+        }
+      />
 
       {!loading && jobs.length === 0 ? (
-        <div className="flex flex-col items-center text-center gap-3 card-glass rounded-2xl p-10">
+        <div className="flex flex-col items-center text-center gap-3 rounded-xl p-10" style={{ border: '1px solid var(--border-card)' }}>
           <div
             className="flex items-center justify-center w-12 h-12 rounded-xl"
             style={{ background: 'linear-gradient(135deg, rgba(6,182,212,0.18), rgba(99,102,241,0.14))', border: '1px solid rgba(6,182,212,0.18)', color: '#22d3ee' }}
@@ -761,6 +913,7 @@ export default function StudentDashboardPage() {
   const [user, setUser]       = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const { myApplications, fetchMyApplications } = useJobs();
 
   useEffect(() => {
     let cancelled = false;
@@ -780,6 +933,12 @@ export default function StudentDashboardPage() {
 
     return () => { cancelled = true; };
   }, []);
+
+  // Dashboard mounts independently of the Jobs page, so it needs its own
+  // fetch to know how many applications the candidate actually has —
+  // without this the "Active applications" stat never leaves its 0
+  // placeholder even after applying.
+  useEffect(() => { fetchMyApplications(); }, [fetchMyApplications]);
 
   const userName = user?.displayName || 'there';
 
@@ -816,9 +975,7 @@ export default function StudentDashboardPage() {
 
   const stats = buildSideStats({
     verifiedSkills: verifiedSkillsCount,
-    // Placeholder until the jobs/applications API + company pages exist —
-    // wire this up to something like `applications.length` at that point.
-    activeApplications: 0,
+    activeApplications: myApplications.length,
     certifications: certificationsCount,
     skillCategoriesCovered,
   });

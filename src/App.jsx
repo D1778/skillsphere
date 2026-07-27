@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
@@ -11,12 +11,18 @@ import StudentDashboardPage from './pages/user/StudentDashboardPage';
 import CareerRoadmapPage   from './pages/user/CareerRoadmapPage';
 import ProfilePage         from './pages/user/ProfilePage';
 import JobsPage            from './pages/user/JobsPage';
+import AccountPage         from './pages/account/AccountPage';
 import CompanyDashboardPage from './pages/company/CompanyDashboardPage';
 import CompanyProfilePage   from './pages/company/CompanyProfilePage';
 import PostJobPage          from './pages/company/PostJobPage';
+import ApplicationsPage     from './pages/company/ApplicationPages';
+import CandidatesPage       from './pages/company/CandidatesPage';
 import CandidateLayout      from './layouts/CandidateLayout';
 import CompanyLayout        from './layouts/CompanyLayout';
+import DashboardLayout      from './components/shared/DashboardLayout';
+import LoadingScreen        from './components/shared/LoadingScreen';
 import { JobsProvider }     from './context/JobsContext';
+import { RoadmapProvider }  from './context/RoadmapContext';
 
 /* ══════════════════════════════════════════════════
    ProtectedRoute
@@ -64,55 +70,114 @@ function GuestRoute({ children }) {
 }
 
 /* ══════════════════════════════════════════════════
+   AccountRoute — /account is shared by both candidates
+   and companies (the sidebar's bottom user-row links
+   here for either role), so it can't live inside either
+   role-scoped layout block — that would either 404/bounce
+   the other role, or (worse) create two routes at the
+   same path, which React Router resolves by declaration
+   order regardless of which role guard wraps them. This
+   picks the matching sidebar/layout at render time from
+   the real signed-in user's role instead.
+══════════════════════════════════════════════════ */
+function AccountRoute() {
+  const { user } = useAuth();
+  const role = user?.role === 'company' ? 'Recruiter' : 'Candidate';
+  return (
+    <DashboardLayout role={role} pageTitle="Account">
+      <AccountPage />
+    </DashboardLayout>
+  );
+}
+
+/* ══════════════════════════════════════════════════
+   AppShell
+   — Shows the full branded LoadingScreen exactly once,
+     on initial app boot, driven by the real auth
+     `loading` state (not a fixed timer).
+   — Once it's done, it unmounts itself for good — the
+     rest of the app's life uses ProtectedRoute's small
+     inline spinner for any further loading, so routing
+     between pages never re-triggers the full splash.
+══════════════════════════════════════════════════ */
+function AppShell() {
+  const { loading } = useAuth();
+  const [showSplash, setShowSplash] = useState(true);
+
+  if (showSplash) {
+    return (
+      <LoadingScreen
+        isLoading={loading}
+        onLoadingComplete={() => setShowSplash(false)}
+      />
+    );
+  }
+
+  return (
+    <Routes>
+      {/* Public */}
+      <Route path="/" element={<Homepage />} />
+
+      {/* Auth pages — redirect away if already signed in */}
+      <Route path="/signin"          element={<GuestRoute><SignInPage /></GuestRoute>} />
+      <Route path="/get-started"     element={<GuestRoute><GetStartedPage /></GuestRoute>} />
+      <Route path="/forgot-password" element={<GuestRoute><ForgotPasswordPage /></GuestRoute>} />
+
+      {/* Profile builder — candidates only, before dashboard */}
+      <Route path="/profile-builder" element={
+        <ProtectedRoute>
+          <ProfileBuilderPage />
+        </ProtectedRoute>
+      } />
+
+      {/* Account — shared by both roles, see AccountRoute above */}
+      <Route path="/account" element={
+        <ProtectedRoute>
+          <AccountRoute />
+        </ProtectedRoute>
+      } />
+
+      {/* Candidate area — Sidebar/Topbar mount once via CandidateLayout
+          and stay mounted while these child pages swap via <Outlet/> */}
+      <Route element={
+        <ProtectedRoute requireRole="candidate">
+          <CandidateLayout />
+        </ProtectedRoute>
+      }>
+        <Route path="/dashboard/candidate" element={<StudentDashboardPage />} />
+        <Route path="/roadmap"             element={<CareerRoadmapPage />} />
+        <Route path="/jobs"                element={<JobsPage />} />
+        <Route path="/profile"             element={<ProfilePage />} />
+      </Route>
+
+      {/* Company area — same persistent-layout pattern */}
+      <Route element={
+        <ProtectedRoute requireRole="company">
+          <CompanyLayout />
+        </ProtectedRoute>
+      }>
+        <Route path="/dashboard/company" element={<CompanyDashboardPage />} />
+        <Route path="/company-profile"   element={<CompanyProfilePage />} />
+        <Route path="/postings"          element={<PostJobPage />} />
+        <Route path="/candidates"         element={<CandidatesPage />} />
+        <Route path="/applications"      element={<ApplicationsPage />} />
+      </Route>
+    </Routes>
+  );
+}
+
+/* ══════════════════════════════════════════════════
    APP
 ══════════════════════════════════════════════════ */
 function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+      <RoadmapProvider>
       <JobsProvider>
-        <Routes>
-          {/* Public */}
-          <Route path="/" element={<Homepage />} />
-
-          {/* Auth pages — redirect away if already signed in */}
-          <Route path="/signin"          element={<GuestRoute><SignInPage /></GuestRoute>} />
-          <Route path="/get-started"     element={<GuestRoute><GetStartedPage /></GuestRoute>} />
-          <Route path="/forgot-password" element={<GuestRoute><ForgotPasswordPage /></GuestRoute>} />
-
-          {/* Profile builder — candidates only, before dashboard */}
-          <Route path="/profile-builder" element={
-            <ProtectedRoute>
-              <ProfileBuilderPage />
-            </ProtectedRoute>
-          } />
-
-          {/* Candidate area — Sidebar/Topbar mount once via CandidateLayout
-              and stay mounted while these child pages swap via <Outlet/> */}
-          <Route element={
-            <ProtectedRoute requireRole="candidate">
-              <CandidateLayout />
-            </ProtectedRoute>
-          }>
-            <Route path="/dashboard/candidate" element={<StudentDashboardPage />} />
-            <Route path="/roadmap"             element={<CareerRoadmapPage />} />
-            <Route path="/jobs"                element={<JobsPage />} />
-            <Route path="/profile"             element={<ProfilePage />} />
-          </Route>
-
-          {/* Company area — same persistent-layout pattern */}
-          <Route element={
-            <ProtectedRoute requireRole="company">
-              <CompanyLayout />
-            </ProtectedRoute>
-          }>
-            <Route path="/dashboard/company" element={<CompanyDashboardPage />} />
-            <Route path="/company-profile"   element={<CompanyProfilePage />} />
-            <Route path="/postings"          element={<PostJobPage />} />
-          </Route>
-
-        </Routes>
+        <AppShell />
       </JobsProvider>
+      </RoadmapProvider>
       </AuthProvider>
     </BrowserRouter>
   );

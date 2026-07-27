@@ -12,6 +12,7 @@
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { useAuth } from './AuthContext';
 import {
   getRoadmap,
   generateRoadmap as apiGenerateRoadmap,
@@ -49,6 +50,7 @@ export const PHASE_COLORS = {
 const RoadmapContext = createContext(null);
 
 export function RoadmapProvider({ children }) {
+  const { user, loading: authLoading } = useAuth();
   const [current, setCurrent]     = useState(null);
   const [previous, setPrevious]   = useState(null);
   const [loading, setLoading]     = useState(true);   // initial GET /roadmap
@@ -69,7 +71,24 @@ export function RoadmapProvider({ children }) {
     }
   }, []);
 
-  useEffect(() => { refresh(); }, [refresh]);
+  // Wait for AuthContext to resolve first. Firing this unconditionally
+  // (the old behavior) meant it ran even when nobody was signed in —
+  // 401'd, found no refresh token either, and the API layer's response
+  // interceptor sent the browser to /signin via `window.location.href`.
+  // If that happened while already on /signin (or any page that mounts
+  // this provider pre-auth), reassigning location.href to the same URL
+  // forces a full reload — which reruns this exact effect again on
+  // mount, 401s again, redirects again: an infinite reload loop.
+  useEffect(() => {
+    if (authLoading) return;
+    if (!user) {
+      setCurrent(null);
+      setPrevious(null);
+      setLoading(false);
+      return;
+    }
+    refresh();
+  }, [authLoading, user, refresh]);
 
   const generate = useCallback(async (targetRole) => {
     setGenerating(true);
