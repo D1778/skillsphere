@@ -13,6 +13,7 @@
 const AppError = require('../utils/AppError');
 const Job      = require('./job.model');
 const Profile  = require('../profile/profile.model');
+const User     = require('../user/user.model');
 const { getJsonCompletion } = require('../utils/gemini');
 
 const EDITABLE_FIELDS = [
@@ -280,6 +281,47 @@ const listMyApplications = async (candidateId) => {
 };
 
 /* ══════════════════════════════════════════════════
+   CANDIDATE-FACING — BOOKMARKS
+   Persisted on User.bookmarkedJobs instead of component state, so a
+   bookmark survives page refreshes/new sessions. ══════════════════════════════════════════════════ */
+
+/* POST /api/jobs/:id/bookmark — toggles bookmark state, returns the new state */
+const toggleBookmark = async (candidateId, jobId) => {
+  const job = await Job.findById(jobId).catch(() => null);
+  if (!job) throw new AppError('Job not found.', 404);
+
+  const user = await User.findById(candidateId);
+  if (!user) throw new AppError('User not found.', 404);
+
+  const alreadyBookmarked = user.bookmarkedJobs.some((id) => String(id) === String(jobId));
+
+  if (alreadyBookmarked) {
+    user.bookmarkedJobs = user.bookmarkedJobs.filter((id) => String(id) !== String(jobId));
+  } else {
+    user.bookmarkedJobs.push(jobId);
+  }
+
+  await user.save();
+
+  return { jobId: String(jobId), bookmarked: !alreadyBookmarked };
+};
+
+/* GET /api/jobs/bookmarked — full job objects for every bookmarked listing */
+const listBookmarked = async (candidateId) => {
+  const user = await User.findById(candidateId).select('bookmarkedJobs');
+  if (!user || !user.bookmarkedJobs.length) return [];
+
+  const jobs = await Job.find({ _id: { $in: user.bookmarkedJobs } })
+    .populate('companyId', 'companyName photoURL socialLinks')
+    .sort({ updatedAt: -1 });
+
+  // A bookmarked job may since have been deleted by the company — those
+  // simply won't come back from the $in query above, so nothing extra
+  // to filter out here.
+  return jobs.map((j) => j.toCandidateView(candidateId));
+};
+
+/* ══════════════════════════════════════════════════
    CANDIDATE-FACING — RECOMMENDATIONS
 ══════════════════════════════════════════════════ */
 
@@ -534,6 +576,6 @@ const updateApplicantStatus = async (companyId, jobId, candidateId, status) => {
 module.exports = {
   listForCompany, getOne, create, update, remove,
   listPublic, getPublicOne, applyToJob, listMyApplications,
-  listRecommended,
+  listRecommended, toggleBookmark, listBookmarked,
   listApplicants, getApplicantProfile, updateApplicantStatus, ROUND_ORDER,
 };

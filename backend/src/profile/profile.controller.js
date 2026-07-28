@@ -5,6 +5,7 @@ const Profile   = require('./profile.model');
 const User      = require('../user/user.model');
 const AppError  = require('../utils/AppError');
 const { sendSuccess } = require('../utils/response');
+const { deleteUploadedFile } = require('../utils/fileCleanup');
 const path      = require('path');
 
 /* ── GET /api/profile ── */
@@ -26,6 +27,13 @@ const updateProfile = async (req, res, next) => {
 
     const update = { ...rest, lastAutosavedAt: new Date() };
 
+    // Always load the existing `personal` subdocument — needed both to
+    // merge a photo-only save on top of it (see below) and to know the
+    // previous photoUrl so we can clean up the old file when it's being
+    // replaced or removed.
+    const existing = await Profile.findOne({ userId: req.user._id }).select('personal').lean();
+    const previousPhotoUrl = existing?.personal?.photoUrl || '';
+
     // Handle photo upload — merge into the `personal` object itself,
     // don't set a dotted 'personal.photoUrl' path alongside the whole
     // `personal` object (Mongo rejects writing to a parent + child path
@@ -37,14 +45,23 @@ const updateProfile = async (req, res, next) => {
     // fullName/title/etc. Load the existing document first so we always
     // merge on top of what's actually saved, not just what this request sent.
     if (req.files?.photo?.[0]) {
-      const existing = update.personal
-        ? null
-        : await Profile.findOne({ userId: req.user._id }).select('personal').lean();
       update.personal = {
         ...(existing?.personal || {}),
         ...(update.personal || {}),
         photoUrl: `/uploads/${req.files.photo[0].filename}`,
       };
+    } else if (update.personal && !update.personal.photoUrl) {
+      // Candidate explicitly removed their photo — the frontend sends
+      // back the full `personal` object with photoUrl cleared. Make
+      // sure that actually lands as '' rather than being dropped.
+      update.personal = { ...update.personal, photoUrl: '' };
+    }
+
+    // Clean up the old file on disk whenever this request changes the
+    // photo (new upload replacing one, or an explicit removal), so
+    // /uploads doesn't accumulate orphaned files.
+    if (update.personal && previousPhotoUrl && previousPhotoUrl !== update.personal.photoUrl) {
+      deleteUploadedFile(previousPhotoUrl);
     }
 
     // Handle cert PDF uploads — keyed by certIndex.

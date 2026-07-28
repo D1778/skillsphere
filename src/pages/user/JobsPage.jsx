@@ -180,22 +180,29 @@ function JobCard({ job, isAppliedTab, isBookmarked, toggleBookmark }) {
    MAIN PAGE
    ========================================================================== */
 export default function JobsPage() {
-  const { browseJobs, browseLoading, browseError, searchOpenJobs, myApplications, fetchMyApplications } = useJobs();
+  const {
+    browseJobs, browseLoading, browseError, searchOpenJobs, myApplications, fetchMyApplications,
+    bookmarkedIds, bookmarkedJobs, bookmarkedLoading, fetchBookmarkedJobs, toggleBookmark,
+  } = useJobs();
   const [activeTab, setActiveTab] = useState('matched'); // 'matched', 'applications', 'bookmarked'
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('All');
-  const [bookmarkedIds, setBookmarkedIds] = useState([]);
 
-  const toggleBookmark = (id) => {
-    setBookmarkedIds(prev =>
-      prev.includes(id) ? prev.filter(bId => bId !== id) : [...prev, id]
-    );
+  // toggleBookmark now persists to the backend (see JobsContext) instead
+  // of only updating component state, so it survives a refresh.
+  const handleToggleBookmark = (id) => {
+    toggleBookmark(id).catch(() => {
+      // Bookmarking failed server-side (network blip, job removed, etc.)
+      // — nothing to roll back since we never optimistically flipped
+      // local state; the button just stays as it was.
+    });
   };
 
   // Initial load
   useEffect(() => {
     searchOpenJobs();
     fetchMyApplications();
+    fetchBookmarkedJobs();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -211,17 +218,32 @@ export default function JobsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery, activeFilter]);
 
-  const jobsForTab = activeTab === 'applications' ? myApplications : browseJobs;
+  // The Bookmarked tab shows the candidate's full bookmarked-job list
+  // (fetched independently) rather than filtering browseJobs by id —
+  // a bookmarked job should still show up here even if it's since
+  // fallen outside the current search/filter, or off the first page
+  // of results.
+  const jobsForTab =
+    activeTab === 'applications' ? myApplications :
+    activeTab === 'bookmarked'   ? bookmarkedJobs  :
+    browseJobs;
 
   const filteredJobs = useMemo(() => {
-    return jobsForTab.filter(job => {
-      if (activeTab === 'bookmarked' && !bookmarkedIds.includes(job.id)) return false;
+    if (activeTab !== 'bookmarked') return jobsForTab;
+    // Client-side filter for the bookmarked tab, since it isn't backed
+    // by the server-side search endpoint like "Browse jobs" is.
+    const q = searchQuery.trim().toLowerCase();
+    return jobsForTab.filter((job) => {
+      if (q && !`${job.title} ${job.companyName || ''}`.toLowerCase().includes(q)) return false;
+      if (activeFilter === 'Full-time' && job.employmentType !== 'Full-time') return false;
+      if (activeFilter === 'Contract' && job.employmentType !== 'Contract') return false;
+      if (activeFilter === 'Remote' && job.workplaceType !== 'Remote') return false;
       return true;
     });
-  }, [jobsForTab, activeTab, bookmarkedIds]);
+  }, [jobsForTab, activeTab, searchQuery, activeFilter]);
 
   const appliedCount = myApplications.length;
-  const bookmarkedCount = bookmarkedIds.length;
+  const bookmarkedCount = bookmarkedIds.size;
 
   return (
     <div className="flex flex-col h-full animate-in fade-in duration-500 relative mt-5">
@@ -297,7 +319,7 @@ export default function JobsPage() {
         </div>
       )}
 
-      {browseLoading && filteredJobs.length === 0 ? (
+      {(browseLoading || (activeTab === 'bookmarked' && bookmarkedLoading)) && filteredJobs.length === 0 ? (
         <div className="flex items-center justify-center py-20 text-gray-400 font-sans text-sm">Loading jobs…</div>
       ) : filteredJobs.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 pb-20">
@@ -306,8 +328,8 @@ export default function JobsPage() {
               key={job.id}
               job={job}
               isAppliedTab={activeTab === 'applications'}
-              isBookmarked={bookmarkedIds.includes(job.id)}
-              toggleBookmark={toggleBookmark}
+              isBookmarked={bookmarkedIds.has(job.id)}
+              toggleBookmark={handleToggleBookmark}
             />
           ))}
         </div>

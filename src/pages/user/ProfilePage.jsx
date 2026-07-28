@@ -698,6 +698,24 @@ export default function ProfilePage() {
     }
   };
 
+  // Clears the photo — falls back to the initials placeholder, same as
+  // before any photo was ever uploaded. Sends the full `personal`
+  // object back with photoUrl cleared (rather than a brand-new /photo
+  // endpoint) since that's exactly what the existing PATCH /api/profile
+  // route already knows how to merge and save.
+  const handleRemovePhoto = async (e) => {
+    e.stopPropagation(); // don't also trigger handlePhotoClick on the parent
+    setPhotoUploading(true);
+    try {
+      const updated = await saveProfile({ personal: { ...(profile?.personal || {}), photoUrl: '' } });
+      setProfile(updated);
+    } catch {
+      setProfileError('Could not remove photo. Please try again.');
+    } finally {
+      setPhotoUploading(false);
+    }
+  };
+
 
   const selectSection = (id) => {
     if (isEditing || id === activeSection) return;
@@ -781,6 +799,15 @@ export default function ProfilePage() {
           <div className="absolute bottom-1 right-1 w-8 h-8 rounded-full bg-[var(--bg-card)] flex items-center justify-center text-cyan-400 border border-cyan-500/30 shadow-[0_4px_12px_rgba(34,211,238,0.2)] hover:bg-cyan-500/20 hover:text-cyan-300 transition-all z-20">
             <IconCamera />
           </div>
+          {photoSrc && !photoUploading && (
+            <button
+              onClick={handleRemovePhoto}
+              title="Remove photo"
+              className="absolute top-0 right-0 w-7 h-7 rounded-full bg-[var(--bg-card)] flex items-center justify-center text-red-400 border border-red-500/30 shadow-[0_4px_12px_rgba(239,68,68,0.2)] hover:bg-red-500/20 hover:text-red-300 transition-all z-20"
+            >
+              <IconClose />
+            </button>
+          )}
         </div>
 
         <div className="relative z-10 flex flex-col items-center sm:items-start gap-1 mt-2 text-center sm:text-left flex-1">

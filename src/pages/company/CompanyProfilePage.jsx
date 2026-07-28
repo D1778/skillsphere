@@ -1,7 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { LogoMark } from '../../components/shared/Topbar';
 import { useAuth } from '../../context/AuthContext';
-import { updateMe } from '../../services/api';
+import { updateMe, uploadUserPhoto, removeUserPhoto } from '../../services/api';
+
+const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+// photoURL may be a relative "/uploads/xxx.png" path from our own backend,
+// or an absolute OAuth avatar URL — only prefix the relative kind.
+const fileUrl = (path) => (path ? (/^https?:\/\//.test(path) ? path : `${BASE_URL}${path}`) : null);
 
 // Icons
 const IconUsers = () => (
@@ -44,6 +49,11 @@ const IconCamera = () => (
     <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>
   </svg>
 );
+const IconTrash = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>
+  </svg>
+);
 
 const ProfileField = ({ label, value, isEditing, children, colSpan = 1 }) => {
   return (
@@ -59,12 +69,47 @@ export default function CompanyProfilePage() {
 
   const [activeSection, setActiveSection] = useState('account');
   const [isEditing, setIsEditing] = useState(false);
-  const [profileImage, setProfileImage] = useState(null);
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const [photoError, setPhotoError] = useState('');
   const fileInputRef = useRef(null);
   const handlePhotoClick = () => fileInputRef.current?.click();
-  const handlePhotoChange = (e) => {
+
+  // Previously this only did setProfileImage(URL.createObjectURL(file)) —
+  // a local, in-memory preview that never touched the backend. It looked
+  // like it worked (the picture changed on screen) but nothing was ever
+  // uploaded or saved, so a refresh — or another visit — always showed
+  // the old logo again. Now it actually uploads the file and updates the
+  // shared user object so the new logo persists.
+  const handlePhotoChange = async (e) => {
     const file = e.target.files?.[0];
-    if (file) setProfileImage(URL.createObjectURL(file));
+    if (!file) return;
+    setPhotoUploading(true);
+    setPhotoError('');
+    try {
+      const updatedUser = await uploadUserPhoto(file);
+      setUser(updatedUser);
+    } catch (err) {
+      setPhotoError(err.response?.data?.message || 'Could not upload photo. Please try again.');
+    } finally {
+      setPhotoUploading(false);
+      e.target.value = '';
+    }
+  };
+
+  // Clears the logo entirely — the avatar then falls back to the
+  // company-initials placeholder, same as before any logo was ever set.
+  const handleRemovePhoto = async (e) => {
+    e.stopPropagation(); // don't also trigger handlePhotoClick on the parent
+    setPhotoUploading(true);
+    setPhotoError('');
+    try {
+      const updatedUser = await removeUserPhoto();
+      setUser(updatedUser);
+    } catch (err) {
+      setPhotoError(err.response?.data?.message || 'Could not remove photo. Please try again.');
+    } finally {
+      setPhotoUploading(false);
+    }
   };
 
   // Company Name + Social Links are the only editable fields left on this
@@ -162,11 +207,13 @@ export default function CompanyProfilePage() {
           <div className="absolute top-0 left-0 w-[300px] h-[300px] bg-indigo-500/10 rounded-full blur-[80px] -translate-x-1/2 -translate-y-1/2 pointer-events-none"></div>
 
           <div className="relative z-10 shrink-0 group/avatar cursor-pointer" onClick={handlePhotoClick}>
-            <input type="file" ref={fileInputRef} onChange={handlePhotoChange} className="hidden" accept="image/*" />
+            <input type="file" ref={fileInputRef} onChange={handlePhotoChange} className="hidden" accept="image/jpeg,image/png,image/webp" />
             <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-[0_0_20px_rgba(99,102,241,0.2)] overflow-hidden border border-[var(--border-card)] relative transition-transform duration-300 group-hover/avatar:scale-105">
                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-30"></div>
-               {profileImage ? (
-                 <img src={profileImage} alt="Company Logo" className="w-full h-full object-cover relative z-10" />
+               {photoUploading ? (
+                 <div className="w-6 h-6 border-2 border-white/40 border-t-white rounded-full animate-spin relative z-10" />
+               ) : user?.photoURL ? (
+                 <img src={fileUrl(user.photoURL)} alt="Company Logo" className="w-full h-full object-cover relative z-10" />
                ) : (
                  <span className="font-sans text-3xl sm:text-4xl font-black text-white tracking-widest drop-shadow-md relative z-10">
                    {formData.companyName ? formData.companyName.substring(0, 2).toUpperCase() : 'CO'}
@@ -176,7 +223,19 @@ export default function CompanyProfilePage() {
             <div className="absolute bottom-1 right-1 w-8 h-8 rounded-full bg-[var(--bg-card)] flex items-center justify-center text-purple-400 border border-purple-500/30 shadow-[0_4px_12px_rgba(168,85,247,0.2)] hover:bg-purple-500/20 hover:text-purple-300 transition-all z-20">
               <IconCamera />
             </div>
+            {user?.photoURL && !photoUploading && (
+              <button
+                onClick={handleRemovePhoto}
+                title="Remove logo"
+                className="absolute top-0 right-0 w-7 h-7 rounded-full bg-[var(--bg-card)] flex items-center justify-center text-red-400 border border-red-500/30 shadow-[0_4px_12px_rgba(239,68,68,0.2)] hover:bg-red-500/20 hover:text-red-300 transition-all z-20"
+              >
+                <IconTrash />
+              </button>
+            )}
           </div>
+          {photoError && (
+            <p className="absolute z-20 top-2 left-2 sm:left-auto sm:right-2 font-sans text-[0.72rem] text-red-300 bg-red-500/10 border border-red-500/25 px-2.5 py-1 rounded-lg">{photoError}</p>
+          )}
 
           <div className="relative z-10 flex flex-col items-center sm:items-start gap-1 mt-2 text-center sm:text-left flex-1">
             <h2 className="font-sans text-xl sm:text-2xl font-extrabold text-[var(--text-primary)] tracking-tight drop-shadow-sm">{formData.companyName || 'Company Name'}</h2>

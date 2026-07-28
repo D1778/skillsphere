@@ -2,6 +2,7 @@ const User            = require('./user.model');
 const Profile         = require('../profile/profile.model');
 const AppError        = require('../utils/AppError');
 const { sendSuccess } = require('../utils/response');
+const { deleteUploadedFile } = require('../utils/fileCleanup');
 
 /* ════════════════════════════════════════════════
    GET /api/user/me
@@ -70,6 +71,67 @@ const updateMe = async (req, res, next) => {
 };
 
 /* ════════════════════════════════════════════════
+   POST /api/user/me/photo
+   Uploads/replaces the signed-in user's avatar (candidate headshot
+   or company logo — both just live on User.photoURL). Multer has
+   already written the file to /uploads and attached it as req.file
+   by the time this runs.
+════════════════════════════════════════════════ */
+const uploadPhoto = async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return next(new AppError('No image file was uploaded. Use JPEG, PNG or WebP under 5MB.', 400));
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) return next(new AppError('User not found.', 404));
+
+    const previousPhotoUrl = user.photoURL || '';
+    user.photoURL = `/uploads/${req.file.filename}`;
+    await user.save();
+
+    // Clean up the file this one just replaced (if it was one of ours —
+    // deleteUploadedFile() ignores external/OAuth avatar URLs).
+    if (previousPhotoUrl && previousPhotoUrl !== user.photoURL) {
+      deleteUploadedFile(previousPhotoUrl);
+    }
+
+    sendSuccess(res, {
+      message: 'Photo updated successfully.',
+      data:    { user: user.toPublic() },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/* ════════════════════════════════════════════════
+   DELETE /api/user/me/photo
+   Removes the current avatar/logo entirely — the frontend then falls
+   back to the initials placeholder, same as a brand-new account that
+   never uploaded one.
+════════════════════════════════════════════════ */
+const removePhoto = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) return next(new AppError('User not found.', 404));
+
+    const previousPhotoUrl = user.photoURL || '';
+    user.photoURL = null;
+    await user.save();
+
+    deleteUploadedFile(previousPhotoUrl);
+
+    sendSuccess(res, {
+      message: 'Photo removed.',
+      data:    { user: user.toPublic() },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/* ════════════════════════════════════════════════
    DELETE /api/user/me
    Permanently deletes the signed-in user's account.
    Body: { confirmText }  — must be exactly "DELETE".
@@ -105,4 +167,4 @@ const deleteMe = async (req, res, next) => {
   }
 };
 
-module.exports = { getMe, updateMe, deleteMe };
+module.exports = { getMe, updateMe, deleteMe, uploadPhoto, removePhoto };

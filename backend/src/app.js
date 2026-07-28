@@ -11,11 +11,24 @@ const profileRoutes = require('./profile/profile.routes');
 const githubRoutes  = require('./github/github.routes');
 const roadmapRoutes = require('./roadmap/roadmap.routes');
 const jobRoutes      = require('./job/job.routes');
+const candidateRoutes = require('./candidate/candidate.routes');
 const AppError      = require('./utils/AppError');
 
 const app = express();
 
-app.use(helmet());
+// helmet()'s default Cross-Origin-Resource-Policy is 'same-origin', which
+// blocks the browser from rendering <img src="http://localhost:5000/uploads/..">
+// when the page itself is served from a different origin (e.g. the Vite
+// dev server on :5173). That's exactly our setup — the frontend and API
+// run on different ports/origins, and profile photos, company logos,
+// certs, etc. are all loaded directly from the backend. Relaxing this to
+// 'cross-origin' is what fixes the "ERR_BLOCKED_BY_RESPONSE.NotSameOrigin"
+// console error on those images. This only affects the CORP response
+// header (safe to loosen for public, non-sensitive static assets); it
+// does not disable any other helmet protection.
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+}));
 app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:5173', credentials: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -55,6 +68,7 @@ app.use('/api/profile', profileRoutes);
 app.use('/api/github',  githubRoutes);
 app.use('/api/roadmap', roadmapRoutes);
 app.use('/api/jobs',    jobRoutes);
+app.use('/api/candidates', candidateRoutes);
 
 app.use((req, _res, next) => next(new AppError(`Route ${req.originalUrl} not found.`, 404)));
 

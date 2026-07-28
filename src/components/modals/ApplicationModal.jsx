@@ -203,16 +203,16 @@ export default function ApplicationModal({ isOpen, onClose, jobId }) {
                     <span className="font-sans text-[0.7rem] font-bold text-[var(--text-muted)] tracking-widest uppercase">Attachments</span>
                     {job.attachments?.jobDescriptionPdf?.url && (
                       <a href={fileUrl(job.attachments.jobDescriptionPdf.url)} target="_blank" rel="noreferrer" download
-                        className="flex items-center justify-between gap-2 bg-[var(--bg-panel)] border border-[var(--border-card)] rounded-lg px-3 py-2 hover:border-indigo-500/50 transition-colors group">
+                        className="flex items-center justify-between gap-2 bg-[var(--bg-panel)] border border-[var(--border-card)] rounded-lg px-3 py-2 hover:border-cyan-500/50 transition-colors group">
                         <span className="flex items-center gap-2 font-sans text-[0.85rem] text-[var(--text-primary)] truncate"><IconFile /> {job.attachments.jobDescriptionPdf.originalName || 'Job description.pdf'}</span>
-                        <span className="text-indigo-400 group-hover:text-indigo-300"><IconDownload /></span>
+                        <span className="text-cyan-400 group-hover:text-cyan-300"><IconDownload /></span>
                       </a>
                     )}
                     {job.attachments?.companyBrochurePdf?.url && (
                       <a href={fileUrl(job.attachments.companyBrochurePdf.url)} target="_blank" rel="noreferrer" download
-                        className="flex items-center justify-between gap-2 bg-[var(--bg-panel)] border border-[var(--border-card)] rounded-lg px-3 py-2 hover:border-indigo-500/50 transition-colors group">
+                        className="flex items-center justify-between gap-2 bg-[var(--bg-panel)] border border-[var(--border-card)] rounded-lg px-3 py-2 hover:border-cyan-500/50 transition-colors group">
                         <span className="flex items-center gap-2 font-sans text-[0.85rem] text-[var(--text-primary)] truncate"><IconFile /> {job.attachments.companyBrochurePdf.originalName || 'Company brochure.pdf'}</span>
-                        <span className="text-indigo-400 group-hover:text-indigo-300"><IconDownload /></span>
+                        <span className="text-cyan-400 group-hover:text-cyan-300"><IconDownload /></span>
                       </a>
                     )}
                   </div>
@@ -232,7 +232,7 @@ export default function ApplicationModal({ isOpen, onClose, jobId }) {
                 <div className="flex items-center justify-between gap-3 mt-auto pt-2">
                   <span />
                   <button
-                    className="font-sans text-[0.85rem] font-semibold text-white bg-indigo-500 rounded-lg px-6 py-2.5 hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed shadow-md transition-all active:scale-95 cursor-pointer"
+                    className="font-sans text-[0.85rem] font-semibold text-white bg-cyan-500 rounded-lg px-6 py-2.5 hover:bg-cyan-600 disabled:opacity-50 disabled:cursor-not-allowed shadow-md transition-all active:scale-95 cursor-pointer"
                     disabled={isExpired || alreadyApplied}
                     onClick={() => setStep(1)}
                   >
@@ -248,7 +248,7 @@ export default function ApplicationModal({ isOpen, onClose, jobId }) {
                 <button className="absolute top-4 right-4 bg-transparent border-none text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors text-xl font-bold cursor-pointer" onClick={resetAndClose}>✕</button>
 
                 <div className="flex items-center gap-3 mb-2">
-                  <IconShield className="text-indigo-400" />
+                  <IconShield className="text-cyan-400" />
                   <h2 className="font-sans text-[1.1rem] font-bold text-[var(--text-heading)]">Confirm your application</h2>
                 </div>
 
@@ -263,7 +263,7 @@ export default function ApplicationModal({ isOpen, onClose, jobId }) {
                     </div>
                     <div className="flex items-center justify-between gap-3 mt-auto pt-2">
                       <button className="font-sans text-[0.85rem] font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)]" onClick={() => setStep(0)}>Back</button>
-                      <Link to="/profile-builder" onClick={resetAndClose} className="font-sans text-[0.85rem] font-semibold text-white bg-indigo-500 rounded-lg px-6 py-2.5 hover:bg-indigo-600 shadow-md transition-all active:scale-95">
+                      <Link to="/profile-builder" onClick={resetAndClose} className="font-sans text-[0.85rem] font-semibold text-white bg-cyan-500 rounded-lg px-6 py-2.5 hover:bg-cyan-600 shadow-md transition-all active:scale-95">
                         Complete profile
                       </Link>
                     </div>
@@ -294,17 +294,17 @@ export default function ApplicationModal({ isOpen, onClose, jobId }) {
 
                     <span className="font-sans text-[0.7rem] font-bold text-[var(--text-muted)] tracking-widest uppercase mb-2">Resume</span>
                     <div className="flex flex-col gap-2 mb-4">
-                      <label className={`flex items-start gap-3 p-3.5 rounded-lg border cursor-pointer transition-all ${shareProfile && !resumeFile ? 'border-indigo-500 bg-indigo-500/10' : 'border-[var(--border-card)] bg-[var(--bg-nav)]'}`}>
+                      <label className={`flex items-start gap-3 p-3.5 rounded-lg border cursor-pointer transition-all ${shareProfile && !resumeFile ? 'border-cyan-500 bg-cyan-500/10' : 'border-[var(--border-card)] bg-[var(--bg-nav)]'}`}>
                         <input type="radio" name="resumeMode" checked={shareProfile && !resumeFile} onChange={() => { setShareProfile(true); setResumeFile(null); }} className="mt-0.5" />
                         <span className="font-sans text-[0.85rem] text-[var(--text-primary)] leading-relaxed">Share my SkillSphere profile as my resume</span>
                       </label>
-                      <label className={`flex items-start gap-3 p-3.5 rounded-lg border cursor-pointer transition-all ${resumeFile ? 'border-indigo-500 bg-indigo-500/10' : 'border-[var(--border-card)] bg-[var(--bg-nav)]'}`}>
+                      <label className={`flex items-start gap-3 p-3.5 rounded-lg border cursor-pointer transition-all ${resumeFile ? 'border-cyan-500 bg-cyan-500/10' : 'border-[var(--border-card)] bg-[var(--bg-nav)]'}`}>
                         <input type="radio" name="resumeMode" checked={!!resumeFile} onChange={() => document.getElementById('resume-upload-input')?.click()} className="mt-0.5" />
                         <span className="font-sans text-[0.85rem] text-[var(--text-primary)] leading-relaxed flex-1">
                           Upload a resume instead
                           {resumeFile && <span className="block text-[0.75rem] text-[var(--text-secondary)] mt-1 truncate">{resumeFile.name}</span>}
                         </span>
-                        <span className="font-sans text-[0.8rem] font-semibold text-indigo-400">Browse</span>
+                        <span className="font-sans text-[0.8rem] font-semibold text-cyan-400">Browse</span>
                         <input id="resume-upload-input" type="file" className="hidden" accept=".doc,.docx,.pdf" onChange={e => {
                           if (e.target.files?.[0]) { setResumeFile(e.target.files[0]); setShareProfile(false); }
                         }} />
@@ -312,9 +312,9 @@ export default function ApplicationModal({ isOpen, onClose, jobId }) {
                       <span className="font-sans text-[0.7rem] text-[var(--text-muted)]">PDF, DOC or DOCX, less than 2MB.</span>
                     </div>
 
-                    <label className={`flex items-start gap-3 p-4 rounded-lg border cursor-pointer mb-6 transition-all duration-300 ${consent ? 'border-indigo-500 bg-indigo-500/10' : 'border-[var(--border-card)] bg-[var(--bg-nav)] hover:border-[var(--border-hover)]'}`}>
+                    <label className={`flex items-start gap-3 p-4 rounded-lg border cursor-pointer mb-6 transition-all duration-300 ${consent ? 'border-cyan-500 bg-cyan-500/10' : 'border-[var(--border-card)] bg-[var(--bg-nav)] hover:border-[var(--border-hover)]'}`}>
                       <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="hidden" />
-                      <div className={`w-4 h-4 rounded-full border mt-0.5 shrink-0 relative flex items-center justify-center transition-all ${consent ? 'border-indigo-500 bg-indigo-500' : 'border-[var(--text-muted)]'}`}>
+                      <div className={`w-4 h-4 rounded-full border mt-0.5 shrink-0 relative flex items-center justify-center transition-all ${consent ? 'border-cyan-500 bg-cyan-500' : 'border-[var(--text-muted)]'}`}>
                         {consent && <div className="w-1.5 h-1.5 rounded-full bg-white"></div>}
                       </div>
                       <span className="font-sans text-[0.85rem] text-[var(--text-secondary)] leading-relaxed select-none">
@@ -330,7 +330,7 @@ export default function ApplicationModal({ isOpen, onClose, jobId }) {
                     <div className="flex items-center justify-between gap-3 mt-auto pt-2">
                       <button className="font-sans text-[0.85rem] font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)]" onClick={() => setStep(0)}>Back</button>
                       <button
-                        className="font-sans text-[0.85rem] font-semibold text-white bg-indigo-500 rounded-lg px-6 py-2.5 hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed shadow-md transition-all active:scale-95 cursor-pointer"
+                        className="font-sans text-[0.85rem] font-semibold text-white bg-cyan-500 rounded-lg px-6 py-2.5 hover:bg-cyan-600 disabled:opacity-50 disabled:cursor-not-allowed shadow-md transition-all active:scale-95 cursor-pointer"
                         disabled={!canProceedFromConsent}
                         onClick={() => setStep(2)}
                       >
@@ -367,7 +367,7 @@ export default function ApplicationModal({ isOpen, onClose, jobId }) {
 
                     <div className="flex flex-col gap-1.5">
                       <label className="font-sans text-[0.8rem] text-[var(--text-secondary)]">Mobile Number*</label>
-                      <div className={`flex items-center w-full sm:w-[300px] bg-transparent border rounded-lg overflow-hidden transition-colors ${errors.phone ? 'border-red-500 bg-red-500/5' : 'border-[var(--border-card)] focus-within:border-indigo-500'}`}>
+                      <div className={`flex items-center w-full sm:w-[300px] bg-transparent border rounded-lg overflow-hidden transition-colors ${errors.phone ? 'border-red-500 bg-red-500/5' : 'border-[var(--border-card)] focus-within:border-cyan-500'}`}>
                         <div className="bg-[var(--bg-nav)] px-3 py-2 border-r border-[var(--border-card)] font-sans text-[0.9rem] text-[var(--text-secondary)] select-none">+91</div>
                         <input
                           type="tel"
@@ -393,11 +393,11 @@ export default function ApplicationModal({ isOpen, onClose, jobId }) {
                         <label className="font-sans text-[0.85rem] text-[var(--text-primary)]">Are you willing to relocate for this role?*</label>
                         <div className="flex items-center gap-4 mt-1">
                           <label className="flex items-center gap-2 cursor-pointer">
-                            <input type="radio" name="relocate" value="yes" checked={relocate === 'yes'} onChange={() => { setRelocate('yes'); setErrors(p => ({ ...p, relocate: null })); }} className="w-4 h-4 text-indigo-600 border-[var(--border-card)] focus:ring-indigo-500 bg-[var(--bg-nav)]" />
+                            <input type="radio" name="relocate" value="yes" checked={relocate === 'yes'} onChange={() => { setRelocate('yes'); setErrors(p => ({ ...p, relocate: null })); }} className="w-4 h-4 text-cyan-600 border-[var(--border-card)] focus:ring-cyan-500 bg-[var(--bg-nav)]" />
                             <span className="font-sans text-[0.85rem] text-[var(--text-primary)]">Yes</span>
                           </label>
                           <label className="flex items-center gap-2 cursor-pointer">
-                            <input type="radio" name="relocate" value="no" checked={relocate === 'no'} onChange={() => { setRelocate('no'); setErrors(p => ({ ...p, relocate: null })); }} className="w-4 h-4 text-indigo-600 border-[var(--border-card)] focus:ring-indigo-500 bg-[var(--bg-nav)]" />
+                            <input type="radio" name="relocate" value="no" checked={relocate === 'no'} onChange={() => { setRelocate('no'); setErrors(p => ({ ...p, relocate: null })); }} className="w-4 h-4 text-cyan-600 border-[var(--border-card)] focus:ring-cyan-500 bg-[var(--bg-nav)]" />
                             <span className="font-sans text-[0.85rem] text-[var(--text-primary)]">No</span>
                           </label>
                         </div>
@@ -407,7 +407,7 @@ export default function ApplicationModal({ isOpen, onClose, jobId }) {
                       <div className="flex flex-col gap-2 relative">
                         <label className="font-sans text-[0.85rem] text-[var(--text-primary)]">What is your current notice period?*</label>
                         <div
-                          className="w-full sm:w-[220px] bg-[var(--bg-nav)] border border-[var(--border-card)] rounded-lg px-3 py-2 font-sans text-[0.9rem] text-[var(--text-primary)] cursor-pointer flex justify-between items-center transition-colors hover:border-indigo-500/50"
+                          className="w-full sm:w-[220px] bg-[var(--bg-nav)] border border-[var(--border-card)] rounded-lg px-3 py-2 font-sans text-[0.9rem] text-[var(--text-primary)] cursor-pointer flex justify-between items-center transition-colors hover:border-cyan-500/50"
                           onClick={(e) => { e.stopPropagation(); setIsDropdownOpen(!isDropdownOpen); }}
                         >
                           {noticePeriod}
@@ -416,7 +416,7 @@ export default function ApplicationModal({ isOpen, onClose, jobId }) {
                         {isDropdownOpen && (
                           <div className="absolute top-[100%] left-0 w-full sm:w-[220px] mt-2 bg-[var(--bg-panel)] border border-[var(--border-card)] rounded-lg shadow-xl overflow-hidden z-[10]">
                             {noticeOptions.map(opt => (
-                              <div key={opt} className="px-4 py-2.5 font-sans text-[0.85rem] text-[var(--text-primary)] hover:bg-indigo-500 hover:text-white cursor-pointer transition-colors" onClick={() => { setNoticePeriod(opt); setIsDropdownOpen(false); }}>
+                              <div key={opt} className="px-4 py-2.5 font-sans text-[0.85rem] text-[var(--text-primary)] hover:bg-cyan-500 hover:text-white cursor-pointer transition-colors" onClick={() => { setNoticePeriod(opt); setIsDropdownOpen(false); }}>
                                 {opt}
                               </div>
                             ))}
@@ -436,7 +436,7 @@ export default function ApplicationModal({ isOpen, onClose, jobId }) {
                     </p>
                     <label className="flex items-center gap-3 cursor-pointer w-fit">
                       <div className="relative flex items-center justify-center">
-                        <input type="checkbox" checked={topChoice} onChange={e => setTopChoice(e.target.checked)} className="peer appearance-none w-[18px] h-[18px] border border-[var(--border-card)] rounded-sm bg-[var(--bg-card)] checked:bg-indigo-600 checked:border-indigo-600 transition-colors" />
+                        <input type="checkbox" checked={topChoice} onChange={e => setTopChoice(e.target.checked)} className="peer appearance-none w-[18px] h-[18px] border border-[var(--border-card)] rounded-sm bg-[var(--bg-card)] checked:bg-cyan-600 checked:border-cyan-600 transition-colors" />
                         <svg className="absolute w-3.5 h-3.5 text-white pointer-events-none opacity-0 peer-checked:opacity-100 transition-opacity" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
                       </div>
                       <span className="font-sans text-[0.85rem] text-[var(--text-primary)]">Mark job as a top choice job</span>
@@ -447,8 +447,8 @@ export default function ApplicationModal({ isOpen, onClose, jobId }) {
 
                   {/* Stand Out */}
                   <div>
-                    <div className="flex items-center gap-1.5 mb-1 text-indigo-400 font-bold text-[0.65rem] tracking-widest uppercase">
-                      <div className="w-[10px] h-[10px] bg-gradient-to-br from-indigo-400 to-indigo-600 rounded-sm"></div>
+                    <div className="flex items-center gap-1.5 mb-1 text-cyan-400 font-bold text-[0.65rem] tracking-widest uppercase">
+                      <div className="w-[10px] h-[10px] bg-gradient-to-br from-cyan-400 to-cyan-600 rounded-sm"></div>
                       LEVEL UP
                     </div>
                     <h3 className="font-sans text-[0.95rem] font-bold text-[var(--text-heading)] mb-1">Stand out to the employer</h3>
@@ -462,7 +462,7 @@ export default function ApplicationModal({ isOpen, onClose, jobId }) {
                         value={pitch}
                         onChange={e => { setPitch(e.target.value); setErrors(p => ({ ...p, pitch: null })); }}
                         placeholder="Briefly describe your relevant experience..."
-                        className={`w-full bg-transparent border rounded-lg px-3 py-2 font-sans text-[0.9rem] text-[var(--text-primary)] focus:border-indigo-500 outline-none placeholder-[var(--text-muted)] resize-none transition-colors ${errors.pitch ? 'border-red-500 bg-red-500/5' : 'border-[var(--border-card)]'}`}
+                        className={`w-full bg-transparent border rounded-lg px-3 py-2 font-sans text-[0.9rem] text-[var(--text-primary)] focus:border-cyan-500 outline-none placeholder-[var(--text-muted)] resize-none transition-colors ${errors.pitch ? 'border-red-500 bg-red-500/5' : 'border-[var(--border-card)]'}`}
                       ></textarea>
                       {errors.pitch && <span className="font-sans text-[0.75rem] text-red-500">{errors.pitch}</span>}
                     </div>
@@ -476,7 +476,7 @@ export default function ApplicationModal({ isOpen, onClose, jobId }) {
                     <p className="font-sans text-[0.85rem] text-[var(--text-primary)] mt-1">
                       {resumeFile ? `Uploaded file: ${resumeFile.name}` : 'Sharing your SkillSphere profile as your resume'}
                     </p>
-                    <button className="font-sans text-[0.8rem] font-semibold text-indigo-400 hover:text-indigo-300 mt-1" onClick={() => setStep(1)}>Change</button>
+                    <button className="font-sans text-[0.8rem] font-semibold text-cyan-400 hover:text-cyan-300 mt-1" onClick={() => setStep(1)}>Change</button>
                   </div>
 
                   <div className="w-full h-px bg-[var(--border-card)]"></div>
@@ -502,7 +502,7 @@ export default function ApplicationModal({ isOpen, onClose, jobId }) {
 
                 <div className="px-6 py-4 border-t border-[var(--border-card)] flex justify-end shrink-0 bg-[var(--bg-card)]">
                   <button
-                    className="font-sans text-[0.85rem] font-semibold text-white bg-indigo-500 hover:bg-indigo-600 rounded-lg px-6 py-2.5 transition-all active:scale-95 shadow-md cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="font-sans text-[0.85rem] font-semibold text-white bg-cyan-500 hover:bg-cyan-600 rounded-lg px-6 py-2.5 transition-all active:scale-95 shadow-md cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                     onClick={handleSubmit}
                     disabled={submitting}
                   >
@@ -527,7 +527,7 @@ export default function ApplicationModal({ isOpen, onClose, jobId }) {
                   Your application for the <strong className="text-[var(--text-primary)]">{job.title}</strong> position at <strong className="text-[var(--text-primary)]">{companyName}</strong> has been sent successfully. Best of luck!
                 </p>
                 <button
-                  className="font-sans text-[0.95rem] font-bold text-[var(--bg-page)] bg-[var(--text-primary)] hover:bg-white rounded-full px-8 py-2.5 transition-colors active:scale-95 shadow-md cursor-pointer w-full"
+                  className="font-sans text-[0.95rem] font-bold text-[var(--bg-page)] bg-[var(--text-primary)] hover:opacity-85 rounded-full px-8 py-2.5 transition-opacity active:scale-95 shadow-md cursor-pointer w-full"
                   onClick={resetAndClose}
                 >
                   Done

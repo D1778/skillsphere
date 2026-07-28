@@ -136,6 +136,29 @@ const listMyApplications = async (req, res, next) => {
   }
 };
 
+/* POST /api/jobs/:id/bookmark — toggles on/off, persisted on the user doc */
+const toggleBookmark = async (req, res, next) => {
+  try {
+    const result = await jobService.toggleBookmark(req.user._id, req.params.id);
+    sendSuccess(res, {
+      message: result.bookmarked ? 'Job bookmarked.' : 'Bookmark removed.',
+      data: result,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/* GET /api/jobs/bookmarked */
+const listBookmarkedJobs = async (req, res, next) => {
+  try {
+    const jobs = await jobService.listBookmarked(req.user._id);
+    sendSuccess(res, { data: { jobs } });
+  } catch (err) {
+    next(err);
+  }
+};
+
 /* ══════════════════════════════════════════════════
    COMPANY-FACING — APPLICANT PIPELINE
 ══════════════════════════════════════════════════ */
@@ -176,5 +199,6 @@ const updateApplicantStatus = async (req, res, next) => {
 module.exports = {
   listJobs, getJob, createJob, updateJob, deleteJob,
   listPublicJobs, getPublicJob, applyJob, listMyApplications, listRecommendedJobs,
+  toggleBookmark, listBookmarkedJobs,
   listApplicants, getApplicantProfile, updateApplicantStatus,
 };

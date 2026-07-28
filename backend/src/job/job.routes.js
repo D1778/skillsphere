@@ -107,6 +107,16 @@ router.get(
   authenticate, authorize('candidate'),
   controller.listMyApplications
 );
+router.get(
+  '/bookmarked',
+  authenticate, authorize('candidate'),
+  controller.listBookmarkedJobs
+);
+router.post(
+  '/:id/bookmark',
+  authenticate, authorize('candidate'),
+  controller.toggleBookmark
+);
 
 // Every remaining job-posting route belongs to a company managing its own listings.
 router.use(authenticate, authorize('company'));

@@ -1,8 +1,9 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import {
   getMyJobs, createJob, updateJob, deleteJob as deleteJobApi,
   searchJobs, applyToJob as applyToJobApi, getMyApplications,
+  toggleJobBookmark as toggleJobBookmarkApi, getBookmarkedJobs,
 } from '../services/api';
 
 const JobsContext = createContext();
@@ -37,6 +38,19 @@ export const JobsProvider = ({ children }) => {
   const [browseError, setBrowseError] = useState('');
   const [myApplications, setMyApplications] = useState([]);
   const [applicationsLoading, setApplicationsLoading] = useState(false);
+
+  /* ── Candidate: bookmarked jobs ──
+     Seeded immediately from user.bookmarkedJobIds (comes free on
+     login/refresh — see User.toPublic() on the backend) so "is this
+     job bookmarked?" checks are correct on first render, before the
+     full job-object list has even been fetched. */
+  const [bookmarkedIds, setBookmarkedIds] = useState(() => new Set(user?.bookmarkedJobIds || []));
+  const [bookmarkedJobs, setBookmarkedJobs] = useState([]);
+  const [bookmarkedLoading, setBookmarkedLoading] = useState(false);
+
+  useEffect(() => {
+    setBookmarkedIds(new Set(user?.bookmarkedJobIds || []));
+  }, [user?.bookmarkedJobIds]);
 
   const fetchJobs = useCallback(async () => {
     if (!user || user.role !== 'company') return;
@@ -132,6 +146,47 @@ export const JobsProvider = ({ children }) => {
     return job;
   };
 
+  /* ── Candidate: full job objects for the "Bookmarked" tab ── */
+  const fetchBookmarkedJobs = useCallback(async () => {
+    if (!user || user.role !== 'candidate') return;
+    setBookmarkedLoading(true);
+    try {
+      const jobs = await getBookmarkedJobs();
+      setBookmarkedJobs(jobs);
+      setBookmarkedIds(new Set(jobs.map((j) => j.id)));
+    } catch {
+      /* leave whatever was there before */
+    } finally {
+      setBookmarkedLoading(false);
+    }
+  }, [user]);
+
+  /* ── Candidate: toggle a bookmark on/off ──
+     Persisted on the backend (survives refresh, unlike the old
+     component-only state). Updates bookmarkedIds everywhere instantly,
+     and keeps the bookmarkedJobs list in sync — pulling the full job
+     object from browseJobs/myApplications if we already have it, so the
+     "Bookmarked" tab doesn't need a re-fetch just to show a newly
+     bookmarked job. */
+  const toggleBookmark = async (jobId) => {
+    const { bookmarked } = await toggleJobBookmarkApi(jobId);
+
+    setBookmarkedIds((prev) => {
+      const next = new Set(prev);
+      if (bookmarked) next.add(jobId); else next.delete(jobId);
+      return next;
+    });
+
+    setBookmarkedJobs((prev) => {
+      if (!bookmarked) return prev.filter((j) => j.id !== jobId);
+      if (prev.some((j) => j.id === jobId)) return prev;
+      const known = [...browseJobs, ...myApplications].find((j) => j.id === jobId);
+      return known ? [known, ...prev] : prev;
+    });
+
+    return bookmarked;
+  };
+
   return (
     <JobsContext.Provider
       value={{
@@ -139,6 +194,7 @@ export const JobsProvider = ({ children }) => {
         browseJobs, browseLoading, browseError, searchOpenJobs,
         myApplications, applicationsLoading, fetchMyApplications,
         applyToJob,
+        bookmarkedIds, bookmarkedJobs, bookmarkedLoading, fetchBookmarkedJobs, toggleBookmark,
       }}
     >
       {children}

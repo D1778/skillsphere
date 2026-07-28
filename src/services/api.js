@@ -179,6 +179,27 @@ export const updateMe = async (fields) => {
   return data.data.user;
 };
 
+/**
+ * Uploads/replaces the signed-in user's avatar (candidate headshot or
+ * company logo — both are just User.photoURL). Accepts a File from an
+ * <input type="file">. Same boundary gotcha as saveProfile() above:
+ * never hardcode the Content-Type here.
+ */
+export const uploadUserPhoto = async (file) => {
+  const form = new FormData();
+  form.append('photo', file);
+  const { data } = await api.post('/user/me/photo', form, {
+    headers: { 'Content-Type': undefined },
+  });
+  return data.data.user;
+};
+
+/** Removes the current avatar/logo — the UI then falls back to initials. */
+export const removeUserPhoto = async () => {
+  const { data } = await api.delete('/user/me/photo');
+  return data.data.user;
+};
+
 export const deleteAccount = async (confirmText) => {
   const { data } = await api.delete('/user/me', { data: { confirmText } });
   clearTokens();
@@ -198,8 +219,17 @@ export const saveProfile = async (profileData, photoFile = null, certFiles = {},
   Object.entries(certFiles).forEach(([idx, file]) => {
     if (file) form.append(`certPdf_${idx}`, file);
   });
+  // IMPORTANT: don't set 'Content-Type': 'multipart/form-data' manually.
+  // A FormData body needs a boundary in that header (e.g.
+  // "multipart/form-data; boundary=----abc123"), which only the browser
+  // can generate. Setting the header ourselves — even to the "right"
+  // string — blocks axios/the browser from ever adding that boundary,
+  // so the server's multipart parser (multer) can't split the request
+  // into fields/files and every upload silently fails. Explicitly
+  // clearing the header (this instance defaults to 'application/json')
+  // lets the browser set the correct one itself.
   const { data } = await api.patch('/profile', form, {
-    headers: { 'Content-Type': 'multipart/form-data' },
+    headers: { 'Content-Type': undefined },
   });
   return data.data.profile;
 };
@@ -262,8 +292,10 @@ const buildJobForm = (jobData, files = {}) => {
  * validates the listing is complete before publishing).
  */
 export const createJob = async (jobData, files = {}) => {
+  // See the comment in saveProfile() above — never hardcode this header
+  // for a FormData body, it strips out the boundary the server needs.
   const { data } = await api.post('/jobs', buildJobForm(jobData, files), {
-    headers: { 'Content-Type': 'multipart/form-data' },
+    headers: { 'Content-Type': undefined },
   });
   return data.data.job;
 };
@@ -275,7 +307,7 @@ export const createJob = async (jobData, files = {}) => {
  */
 export const updateJob = async (id, jobData, files = {}) => {
   const { data } = await api.patch(`/jobs/${id}`, buildJobForm(jobData, files), {
-    headers: { 'Content-Type': 'multipart/form-data' },
+    headers: { 'Content-Type': undefined },
   });
   return data.data.job;
 };
@@ -331,13 +363,29 @@ export const applyToJob = async (jobId, payload, resumeFile = null) => {
   form.append('data', JSON.stringify(payload));
   if (resumeFile) form.append('resume', resumeFile);
   const { data } = await api.post(`/jobs/applications/${jobId}/apply`, form, {
-    headers: { 'Content-Type': 'multipart/form-data' },
+    headers: { 'Content-Type': undefined },
   });
   return data.data.job;
 };
 
 export const getMyApplications = async () => {
   const { data } = await api.get('/jobs/applications/mine');
+  return data.data.jobs;
+};
+
+/**
+ * Toggles a bookmark for one job on/off, persisted on the candidate's
+ * account (User.bookmarkedJobs) — survives refresh/re-login, unlike the
+ * old component-only state.
+ */
+export const toggleJobBookmark = async (jobId) => {
+  const { data } = await api.post(`/jobs/${jobId}/bookmark`);
+  return data.data; // { jobId, bookmarked }
+};
+
+/** Full job objects for every job the candidate has bookmarked. */
+export const getBookmarkedJobs = async () => {
+  const { data } = await api.get('/jobs/bookmarked');
   return data.data.jobs;
 };
 
@@ -365,6 +413,38 @@ export const getApplicantProfile = async (jobId, candidateId) => {
 export const updateApplicantStatus = async (jobId, candidateId, status) => {
   const { data } = await api.patch(`/jobs/${jobId}/applicants/${candidateId}/status`, { status });
   return data.data;
+};
+
+/* ══════════════════════════════════════════════════
+   CANDIDATES (company side — discovery/search across
+   every candidate on the platform, independent of any
+   specific job application)
+══════════════════════════════════════════════════ */
+
+/**
+ * Searches/browses candidates who've opted in to recruiter visibility.
+ * `filters`: { search, skills: string[], location: string[],
+ *              experience: string[] (bucket labels), sortBy, page, limit }
+ * Returns { candidates, pagination: { total, page, limit, pages } }.
+ */
+export const searchCandidates = async (filters = {}) => {
+  const params = {};
+  if (filters.search) params.search = filters.search;
+  if (filters.skills?.length) params.skills = filters.skills.join(',');
+  if (filters.location?.length) params.location = filters.location.join(',');
+  if (filters.experience?.length) params.experience = filters.experience.join(',');
+  if (filters.sortBy) params.sortBy = filters.sortBy;
+  params.page = filters.page || 1;
+  params.limit = filters.limit || 10;
+
+  const { data } = await api.get('/candidates', { params });
+  return data.data;
+};
+
+/** Fetches one candidate's full SkillSphere profile for the "View Profile" popup. */
+export const getCandidateProfile = async (candidateId) => {
+  const { data } = await api.get(`/candidates/${candidateId}`);
+  return data.data.profile;
 };
 
 /* ══════════════════════════════════════════════════

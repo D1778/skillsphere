@@ -25,6 +25,13 @@ const UserSchema = new mongoose.Schema(
 
     /* ── NEW: gates routing after signup ── */
     profileCompleted: { type: Boolean, default: false },
+
+    /* ── Candidate: bookmarked job postings ──
+       Previously this only lived in JobsPage's local React state, so it
+       reset on every refresh. Persisting it on the user doc means it
+       survives reloads/sign-outs and is easy to populate() alongside
+       the rest of the account. ── */
+    bookmarkedJobs: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Job', default: [] }],
   },
   { timestamps: true }
 );
@@ -44,6 +51,7 @@ UserSchema.methods.toPublic = function () {
     provider:         this.provider,
     socialLinks:      this.socialLinks,
     profileCompleted: this.profileCompleted,   // ← frontend needs this for routing
+    bookmarkedJobIds: (this.bookmarkedJobs || []).map((id) => String(id)),
     createdAt:        this.createdAt,
     lastLoginAt:      this.lastLoginAt,
   };
