@@ -11,6 +11,7 @@ import StudentDashboardPage from './pages/user/StudentDashboardPage';
 import CareerRoadmapPage   from './pages/user/CareerRoadmapPage';
 import ProfilePage         from './pages/user/ProfilePage';
 import JobsPage            from './pages/user/JobsPage';
+import InsightsPage from './pages/user/InsightsPage';
 import AccountPage         from './pages/account/AccountPage';
 import CompanyDashboardPage from './pages/company/CompanyDashboardPage';
 import CompanyProfilePage   from './pages/company/CompanyProfilePage';
@@ -147,6 +148,7 @@ function AppShell() {
         <Route path="/dashboard/candidate" element={<StudentDashboardPage />} />
         <Route path="/roadmap"             element={<CareerRoadmapPage />} />
         <Route path="/jobs"                element={<JobsPage />} />
+        <Route path="/insights" element={<InsightsPage />} />
         <Route path="/profile"             element={<ProfilePage />} />
       </Route>
 

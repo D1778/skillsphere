@@ -1,6 +1,8 @@
 import React from 'react';
 import useTheme from '../../hooks/useTheme';
 import { SkillSphereLogo, Logo } from './Logo';
+import { useNotifications } from '../../context/NotificationContext';
+import NotificationDropdown from './NotificationDropdown';
 
 export const LogoMark = Logo;
 
@@ -24,6 +26,7 @@ const IconMoon = () => (
 
 export default function Topbar({ role = 'Candidate', pageTitle = 'Dashboard' }) {
   const { isDark, toggleTheme } = useTheme();
+  const { unreadCount, toggleDropdown, dropdownOpen } = useNotifications();
 
   return (
     <header className="shrink-0 relative h-14 flex items-center justify-between px-4 sm:px-6 border-b border-[var(--divider)] bg-[var(--bg-nav)] backdrop-blur-md z-[300] gap-2 sm:gap-4">
@@ -42,17 +45,34 @@ export default function Topbar({ role = 'Candidate', pageTitle = 'Dashboard' }) 
 
       {/* Right: actions */}
       <div className="flex-1 flex items-center justify-end gap-2">
-        <button 
-          id="topbar-notifications" 
-          aria-label="Notifications"
-          className="relative w-9 h-9 rounded-lg border border-white/5 bg-gray-500/5 text-gray-500 flex items-center justify-center cursor-pointer transition-all hover:bg-gray-500/10 hover:text-white hover:border-gray-500/20"
-        >
-          <IconBell />
-          <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-red-500 border-[1.5px] border-[var(--bg-nav)]" />
-        </button>
-        <button 
-          id="topbar-theme-toggle" 
-          onClick={toggleTheme} 
+        {/* Bell button — notification trigger */}
+        <div className="relative" id="notif-bell-wrapper">
+          <button
+            id="topbar-notifications"
+            aria-label="Notifications"
+            aria-expanded={dropdownOpen}
+            onClick={toggleDropdown}
+            className={`relative w-9 h-9 rounded-lg border bg-gray-500/5 flex items-center justify-center cursor-pointer transition-all duration-200
+              ${dropdownOpen
+                ? 'border-[var(--accent)]/50 bg-[var(--accent)]/10 text-[var(--accent)]'
+                : 'border-white/5 text-gray-500 hover:bg-gray-500/10 hover:text-white hover:border-gray-500/20'
+              }`}
+          >
+            <IconBell />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 border-2 border-[var(--bg-nav)] text-white text-[10px] font-bold flex items-center justify-center leading-none">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
+          </button>
+
+          {/* Dropdown portal — rendered right here, inside the relative wrapper */}
+          <NotificationDropdown />
+        </div>
+
+        <button
+          id="topbar-theme-toggle"
+          onClick={toggleTheme}
           aria-label="Toggle theme"
           className="relative w-9 h-9 rounded-lg border border-white/5 bg-gray-500/5 text-gray-500 flex items-center justify-center cursor-pointer transition-all hover:bg-gray-500/10 hover:text-white hover:border-gray-500/20"
         >

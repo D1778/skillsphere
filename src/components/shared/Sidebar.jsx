@@ -83,7 +83,7 @@ export default function Sidebar({ role = 'Candidate', isExpanded, setIsExpanded 
     { to: '/dashboard/candidate', icon: <IconDashboard />, label: 'Dashboard' },
     { to: '/jobs',                icon: <IconJobs />,      label: 'Jobs' },
     { to: '/roadmap',             icon: <IconPeople />,    label: 'Career Roadmap' },
-    { to: '/analytics',           icon: <IconChart />,     label: 'Analytics' },
+    { to: '/insights', icon: <IconChart />,     label: 'Insights' },
     { to: '/profile',             icon: <IconProfile />,   label: 'Profile'   },
   ];
 
