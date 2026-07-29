@@ -568,16 +568,6 @@ export default function CandidatesPage() {
         onClose={() => setProfileModalOpen(false)}
         candidateId={activeCandidateId}
       />
-<<<<<<< HEAD
-=======
-
-      {/* Floating AI Chatbot button */}
-      <button className="fixed bottom-8 right-8 w-14 h-14 bg-[#0f172a] border border-[#22d3ee]/50 rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(34,211,238,0.4)] hover:scale-105 transition-transform z-50 hover:shadow-[0_0_30px_rgba(34,211,238,0.6)]">
-        <div className="scale-125">
-          <LogoMark />
-        </div>
-      </button>
->>>>>>> 47426fbb288e3196aea1ad02eb03427e6ffb1254
     </>
   );
 }
