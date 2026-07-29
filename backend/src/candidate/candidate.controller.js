@@ -13,6 +13,7 @@ const Profile  = require('../profile/profile.model');
 const User     = require('../user/user.model');
 const AppError = require('../utils/AppError');
 const { sendSuccess } = require('../utils/response');
+const notificationService = require('../notification/notification.service');
 
 /* ── Helpers ─────────────────────────────────────── */
 
@@ -187,6 +188,14 @@ const getCandidateProfile = async (req, res, next) => {
     }
 
     const experienceYears = computeExperienceYears(profile.experiences);
+
+    // Fire-and-forget: the viewing company shouldn't wait on this, and a
+    // notification failure should never block the profile from loading.
+    notificationService.notifyProfileViewed({
+      candidateId:      id,
+      viewerCompanyId:  req.user._id,
+      companyName:      req.user.companyName,
+    }).catch(() => {});
 
     sendSuccess(res, {
       data: {

@@ -254,6 +254,24 @@ export const loadPreviousRoadmap = async () => {
 };
 
 /* ══════════════════════════════════════════════════
+   COMPANY DASHBOARD
+══════════════════════════════════════════════════ */
+
+/**
+ * Everything the Company Dashboard shows: stats, applicants-over-time
+ * chart, hiring funnel, recent applicants, and AI-recommended
+ * candidates. The AI picks are cached server-side (see
+ * dashboard.service.js) to protect Gemini's free-tier quota — pass
+ * `refresh: true` to request a fresh pass instead of the cache (the
+ * backend still enforces its own minimum interval either way, so this
+ * is safe to wire to a "Refresh" button).
+ */
+export const getCompanyDashboard = async ({ refresh = false } = {}) => {
+  const { data } = await api.get('/dashboard', { params: refresh ? { refresh: 'true' } : undefined });
+  return data.data;
+};
+
+/* ══════════════════════════════════════════════════
    JOBS (company side — posting & managing listings)
 ══════════════════════════════════════════════════ */
 
@@ -467,6 +485,31 @@ export const refreshGithubRepos = async () => {
   } catch {
     return { repos: [], reason: 'fetch-failed' };
   }
+};
+
+/* ══════════════════════════════════════════════════
+   NOTIFICATIONS (shared shape for candidates & companies)
+══════════════════════════════════════════════════ */
+
+/** Fetches the signed-in user's notifications. `category` matches the
+ *  CATEGORIES filter list in NotificationPanel.jsx ('All' fetches everything). */
+export const getNotifications = async ({ category, page = 1, limit = 30 } = {}) => {
+  const { data } = await api.get('/notifications', { params: { category, page, limit } });
+  return data.data; // { notifications, unreadCount, pagination }
+};
+
+export const getUnreadNotificationCount = async () => {
+  const { data } = await api.get('/notifications/unread-count');
+  return data.data.unreadCount;
+};
+
+export const markNotificationRead = async (id) => {
+  const { data } = await api.patch(`/notifications/${id}/read`);
+  return data.data.notification;
+};
+
+export const markAllNotificationsRead = async () => {
+  await api.patch('/notifications/read-all');
 };
 
 export default api;

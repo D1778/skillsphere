@@ -7,6 +7,7 @@ const TITLES = {
   '/jobs':                'Opportunity Hub',
   '/roadmap':             'Career Roadmap',
   '/profile':             'Profile',
+  '/insights':            'Insights',
 };
 
 /* ══════════════════════════════════════════════════

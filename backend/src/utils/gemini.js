@@ -20,15 +20,22 @@ const MAX_ATTEMPTS = 2;
  * Sends a chat-style `messages` array (same shape as OpenAI/Groq) to
  * Gemini and returns the parsed JSON object from its response.
  *
+ * `apiKeyEnvVar` lets different features use different Gemini API keys
+ * (and therefore separate free-tier quotas) instead of all sharing one.
+ * For example job.service.js's candidate "recommended jobs" uses the
+ * default GEMINI_API_KEY, while the company dashboard's AI candidate
+ * recommendations use GEMINI_API_COMPANY_DASHBOARD — so a burst of
+ * traffic on one feature can't starve the other of requests.
+ *
  * Retries once (MAX_ATTEMPTS) if the model returns invalid JSON, feeding
  * the parse error back to it — same self-correction trick used for the
  * roadmap generator. Throws AppError on missing config, network failure,
  * an upstream error, or output that's still not valid JSON after retrying.
  */
-const getJsonCompletion = async (messages) => {
-  const apiKey = process.env.GEMINI_API_KEY;
+const getJsonCompletion = async (messages, apiKeyEnvVar = 'GEMINI_API_KEY') => {
+  const apiKey = process.env[apiKeyEnvVar];
   if (!apiKey) {
-    throw new AppError('Gemini is not configured on the server (missing GEMINI_API_KEY).', 500);
+    throw new AppError(`Gemini is not configured on the server (missing ${apiKeyEnvVar}).`, 500);
   }
 
   const conversation = [...messages];

@@ -32,6 +32,28 @@ const UserSchema = new mongoose.Schema(
        survives reloads/sign-outs and is easy to populate() alongside
        the rest of the account. ── */
     bookmarkedJobs: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Job', default: [] }],
+
+    /* ── Company: cached AI-recommended-candidates for the dashboard ──
+       Gemini's free tier has a small daily/per-minute request quota, and
+       the dashboard is a page people reload constantly — calling the
+       model on every load would burn through that quota almost
+       immediately. Instead we cache the ranked picks here and only call
+       Gemini again once the cache is older than the configured TTL (see
+       dashboard.service.js). Each pick remembers which of the company's
+       jobs it was matched against, since the same candidate might have
+       applied to more than one. ── */
+    dashboardRecommendationCache: {
+      generatedAt: { type: Date, default: null },
+      picks: [
+        {
+          _id:          false,
+          candidateId:  { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+          jobId:        { type: mongoose.Schema.Types.ObjectId, ref: 'Job' },
+          matchPercent: { type: Number, default: null },
+          reason:       { type: String, default: '' },
+        },
+      ],
+    },
   },
   { timestamps: true }
 );

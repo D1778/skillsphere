@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { getMyJobs, getJobApplicants, getApplicantProfile, updateApplicantStatus } from '../../services/api';
 
 /* ─── Inline SVG icons ─── */
@@ -72,6 +72,34 @@ const externalUrl = (url) => {
 
 const initials = (name = '') =>
   name.split(' ').filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase()).join('') || '?';
+
+/**
+ * Avatar with a graceful fallback. A raw <img> with no onError handler
+ * shows the browser's broken-image icon whenever the photo URL 404s or
+ * is otherwise unreachable — which is exactly what was happening here.
+ * This renders the same cyan/blue initials badge as before whenever
+ * there's no photo, and automatically falls back to it if the real
+ * photo fails to load too.
+ */
+function ApplicantAvatar({ photoURL, name, size = 36, className = '' }) {
+  const [failed, setFailed] = useState(false);
+  const src = photoURL ? fileUrl(photoURL) : null;
+  return src && !failed ? (
+    <img
+      src={src}
+      alt={name}
+      onError={() => setFailed(true)}
+      className={`w-full h-full object-cover ${className}`}
+    />
+  ) : (
+    <span
+      className={`flex items-center justify-center w-full h-full text-white font-sans font-bold ${className}`}
+      style={{ background: 'linear-gradient(135deg, #06b6d4, #3b82f6)', fontSize: size * 0.36 }}
+    >
+      {initials(name)}
+    </span>
+  );
+}
 
 const fmtDate = (iso) =>
   iso ? new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
@@ -214,6 +242,7 @@ function StatusFilterSelect({ value, options, onChange }) {
 ══════════════════════════════════════════════════ */
 export default function ApplicationsPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const [jobs, setJobs]               = useState([]);
   const [jobsLoading, setJobsLoading] = useState(true);
@@ -236,13 +265,17 @@ export default function ApplicationsPage() {
       try {
         const data = await getMyJobs();
         setJobs(data || []);
-        if (data?.length) setSelectedJobId(data[0].id);
+        const linkedJobId = searchParams.get('job');
+        const linkedJobExists = linkedJobId && data?.some((j) => j.id === linkedJobId);
+        if (linkedJobExists) setSelectedJobId(linkedJobId);
+        else if (data?.length) setSelectedJobId(data[0].id);
       } catch {
         setJobs([]);
       } finally {
         setJobsLoading(false);
       }
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /* ── Load applicants whenever the selected job changes ── */
@@ -464,16 +497,7 @@ export default function ApplicationsPage() {
                                     className="block w-9 h-9 rounded-full overflow-hidden bg-[var(--card-inner-bg)] border border-[var(--border-card)]"
                                     aria-label="Toggle email"
                                   >
-                                    {a.photoURL ? (
-                                      <img src={fileUrl(a.photoURL)} alt={a.name} className="w-full h-full object-cover" />
-                                    ) : (
-                                      <span
-                                        className="flex items-center justify-center w-full h-full text-white font-sans text-[0.75rem] font-bold"
-                                        style={{ background: 'linear-gradient(135deg, #06b6d4, #3b82f6)' }}
-                                      >
-                                        {initials(a.name)}
-                                      </span>
-                                    )}
+                                    <ApplicantAvatar photoURL={a.photoURL} name={a.name} size={36} />
                                   </button>
                                 </div>
                                 <div className="flex flex-col min-w-0">
@@ -614,16 +638,7 @@ function ApplicantDetailModal({ applicant, jobId, onClose }) {
         <div className="flex items-start justify-between mb-5">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-full overflow-hidden bg-[var(--card-inner-bg)] border border-[var(--border-card)] shrink-0">
-              {applicant.photoURL ? (
-                <img src={fileUrl(applicant.photoURL)} alt={applicant.name} className="w-full h-full object-cover" />
-              ) : (
-                <span
-                  className="flex items-center justify-center w-full h-full text-white font-sans font-bold"
-                  style={{ background: 'linear-gradient(135deg, #06b6d4, #3b82f6)' }}
-                >
-                  {initials(applicant.name)}
-                </span>
-              )}
+              <ApplicantAvatar photoURL={applicant.photoURL} name={applicant.name} size={48} />
             </div>
             <div>
               <div className="font-sans text-[1.05rem] font-bold text-[var(--text-primary)]">{applicant.name}</div>

@@ -15,6 +15,7 @@ const Job      = require('./job.model');
 const Profile  = require('../profile/profile.model');
 const User     = require('../user/user.model');
 const { getJsonCompletion } = require('../utils/gemini');
+const notificationService = require('../notification/notification.service');
 
 const EDITABLE_FIELDS = [
   'title', 'department', 'jobCategory', 'employmentType',
@@ -128,6 +129,12 @@ const create = async (companyId, body, files) => {
     publishedAt: status === 'active' ? new Date() : null,
   });
 
+  if (status === 'active') {
+    notificationService.notifyJobPublished({
+      companyId, jobId: job._id, jobTitle: job.title,
+    }).catch(() => {});
+  }
+
   return job.toPublic();
 };
 
@@ -150,6 +157,13 @@ const update = async (companyId, jobId, body, files) => {
   job.status = nextStatus;
 
   await job.save();
+
+  if (nextStatus === 'active' && !wasActive) {
+    notificationService.notifyJobPublished({
+      companyId, jobId: job._id, jobTitle: job.title,
+    }).catch(() => {});
+  }
+
   return job.toPublic();
 };
 
@@ -268,6 +282,28 @@ const applyToJob = async (candidate, jobId, body, file) => {
   job.applicantsCount = job.applications.length;
 
   await job.save();
+
+  // Fire-and-forget: never let a notification failure block the response
+  // for an application that already succeeded. companyName needs a quick
+  // populate since `job.companyId` on this doc is still just an ObjectId.
+  Job.populate(job, { path: 'companyId', select: 'companyName' }).then((populated) => {
+    const companyName = populated.companyId?.companyName || 'a company';
+    notificationService.notifyApplicationSubmitted({
+      candidateId: candidate._id,
+      jobId:       job._id,
+      jobTitle:    job.title,
+      companyName,
+    }).catch(() => {});
+  }).catch(() => {});
+
+  notificationService.notifyNewApplicant({
+    companyId:     job.companyId,
+    candidateId:   candidate._id,
+    candidateName: candidate.fullName,
+    jobId:         job._id,
+    jobTitle:      job.title,
+  }).catch(() => {});
+
   return job.toCandidateView(candidate._id);
 };
 
@@ -546,6 +582,15 @@ const getApplicantProfile = async (companyId, jobId, candidateId) => {
 
   const profile = await Profile.findOne({ userId: candidateId }).lean();
   if (!profile) throw new AppError('Candidate profile not found.', 404);
+
+  User.findById(companyId).select('companyName').then((company) => {
+    notificationService.notifyProfileViewed({
+      candidateId,
+      viewerCompanyId: companyId,
+      companyName: company?.companyName,
+    }).catch(() => {});
+  }).catch(() => {});
+
   return profile;
 };
 
@@ -569,6 +614,16 @@ const updateApplicantStatus = async (companyId, jobId, candidateId, status) => {
   application.status = status;
   application.statusUpdatedAt = new Date();
   await job.save();
+
+  Job.populate(job, { path: 'companyId', select: 'companyName' }).then((populated) => {
+    notificationService.notifyApplicationStatusChanged({
+      candidateId,
+      jobId:       job._id,
+      jobTitle:    job.title,
+      companyName: populated.companyId?.companyName || 'a company',
+      status,
+    }).catch(() => {});
+  }).catch(() => {});
 
   return { candidateId, status: application.status, statusUpdatedAt: application.statusUpdatedAt };
 };
