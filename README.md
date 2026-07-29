@@ -15,7 +15,7 @@ The platform ships as two independent apps in one repo: a **React (Vite)** front
 - **Job discovery** — browse open roles, with an AI-ranked "Recommended for you" list based on the candidate's skill profile.
 - **Personal dashboard** — an at-a-glance view of profile completeness, roadmap progress, and recommended jobs.
 - **In-app notifications** for application updates and platform activity.
-- **AI assistant widget** — a floating chatbot shell present across candidate and company views (currently front-end only; see [Chatbot](#-chatbot) below).
+- **AI assistant widget** — a floating chatbot shell present across candidate and company views.
 
 ### For Companies
 - **Company profile & branding** — logo, description, and social links.
@@ -255,8 +255,6 @@ The floating AI assistant (`GlobalChatbot` / `ChatInterface`) is already built a
 ---
 
 ## 🎨 Design System
-
-Full details on the visual architecture, component-by-component breakdown, and CSS/theme system are documented in [`SkillSphere_Documentation.md`](./SkillSphere_Documentation.md) (also available as a PDF). Highlights:
 
 - CSS custom properties drive every color (`--bg-page`, `--text-primary`, `--bg-card`, `--border-card`, `--glow-1` … `--glow-5`), toggled instantly between dark (default) and `[data-theme="light"]`.
 - `.card-glass` utility provides the shared glassmorphism look (blur, translucent borders, hover states) used across all cards.
