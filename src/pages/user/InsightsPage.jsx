@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import CustomDatePicker from '../../components/shared/CustomDatePicker';
+import { getCandidateInsights } from '../../services/api';
 
 /* ─── Inline SVG Icons ─── */
 const IconSend = () => (
@@ -33,11 +34,6 @@ const IconCalendar = () => (
     <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
   </svg>
 );
-const IconChevronRight = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="9 18 15 12 9 6"/>
-  </svg>
-);
 const IconChevronDown = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <polyline points="6 9 12 15 18 9"/>
@@ -48,52 +44,33 @@ const IconX = () => (
     <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
   </svg>
 );
-const IconSparkles = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
-  </svg>
-);
 
-/* ─── Mock Data ─── */
-const STATUS_STATS = [
-  { id: 'applied', label: 'Applied', count: 28, color: 'indigo', hex: '#8b5cf6', icon: <IconSend /> },
-  { id: 'shortlisted', label: 'Shortlisted', count: 8, color: 'emerald', hex: '#10b981', icon: <IconBookmark /> },
-  { id: 'in_review', label: 'In Review / Waiting', count: 12, color: 'amber', hex: '#f59e0b', icon: <IconHourglass /> },
-  { id: 'interviewed', label: 'Interviewed', count: 5, color: 'blue', hex: '#3b82f6', icon: <IconUsers /> },
-  { id: 'rejected', label: 'Rejected', count: 3, color: 'red', hex: '#f43f5e', icon: <IconBriefcase /> }
-];
+/* ─── Static display metadata ───
+   The backend only ever sends back { id, count } for stat cards and
+   { label, count, percent } for the roles chart — labels/icons/colors
+   for the 5 fixed stat-card buckets live here so the API stays a plain
+   data payload instead of shipping UI concerns like hex colors. */
+const STATUS_META = {
+  applied:     { label: 'Applied',              color: 'indigo',  hex: '#8b5cf6', icon: <IconSend /> },
+  shortlisted: { label: 'Shortlisted',           color: 'emerald', hex: '#10b981', icon: <IconBookmark /> },
+  in_review:   { label: 'In Review / Waiting',   color: 'amber',   hex: '#f59e0b', icon: <IconHourglass /> },
+  interviewed: { label: 'Interviewed',           color: 'blue',    hex: '#3b82f6', icon: <IconUsers /> },
+  rejected:    { label: 'Rejected',              color: 'red',     hex: '#f43f5e', icon: <IconBriefcase /> },
+};
 
-const ROLES_CHART = [
-  { label: 'Frontend Developer', count: 12, percent: 42.9, color: '#8b5cf6' }, // 0 - 42.9%
-  { label: 'Full Stack Developer', count: 6, percent: 21.4, color: '#10b981' }, // 42.9 - 64.3%
-  { label: 'UI/UX Designer', count: 5, percent: 17.9, color: '#f59e0b' },      // 64.3 - 82.2%
-  { label: 'Backend Developer', count: 3, percent: 10.7, color: '#3b82f6' },   // 82.2 - 92.9%
-  { label: 'Other', count: 2, percent: 7.1, color: '#f43f5e' }                 // 92.9 - 100%
-];
+// Cycled through in rank order for the top-roles donut/legend — the
+// backend ranks roles by count but doesn't assign colors.
+const ROLE_COLORS = ['#8b5cf6', '#10b981', '#f59e0b', '#3b82f6', '#f43f5e', '#ec4899'];
 
-const RECENT_APPS = [
-  { id: 1, company: 'Tata Consultancy Services', logo: 'TCS', role: 'Frontend Developer', status: 'shortlisted', date: '2 days ago' },
-  { id: 2, company: 'Microsoft', logo: 'M', role: 'UI/UX Designer', status: 'in_review', date: '3 days ago' },
-  { id: 3, company: 'Google', logo: 'G', role: 'Frontend Developer', status: 'interviewed', date: '5 days ago' },
-  { id: 4, company: 'Infosys', logo: 'INF', role: 'Software Engineer', status: 'in_review', date: '1 week ago' },
-  { id: 5, company: 'Accenture', logo: 'A', role: 'Full Stack Developer', status: 'rejected', date: '1 week ago' }
-];
-
-const UPCOMING = [
-  { id: 1, company: 'Zoho', role: 'Product Developer', stage: 'Assessment', date: '20 May 2025', time: '11:00 AM' },
-  { id: 2, company: 'Cognizant', role: 'Frontend Developer', stage: 'HR Round', date: '22 May 2025', time: '02:00 PM' },
-  { id: 3, company: 'Capgemini', role: 'UI Developer', stage: 'Technical Round', date: '24 May 2025', time: '10:00 AM' },
-  { id: 4, company: 'Wipro', role: 'Software Engineer', stage: 'Waiting for Response', date: 'Applied on 18 May 2025', time: '' }
-];
-
-const ALL_MOCK_APPS = [
-  ...RECENT_APPS,
-  { id: 6, company: 'Amazon', logo: 'AMZ', role: 'Frontend Developer', status: 'applied', date: '2 weeks ago' },
-  { id: 7, company: 'Netflix', logo: 'N', role: 'UI/UX Designer', status: 'shortlisted', date: '3 weeks ago' },
-  { id: 8, company: 'Apple', logo: 'AAPL', role: 'Backend Developer', status: 'rejected', date: '1 month ago' },
-  { id: 9, company: 'Meta', logo: 'M', role: 'Full Stack Developer', status: 'interviewed', date: '1 month ago' },
-  { id: 10, company: 'IBM', logo: 'IBM', role: 'Software Engineer', status: 'applied', date: '1 month ago' }
-];
+/* Maps the UI date-filter labels to the API's `range` query param. */
+const RANGE_PARAM = {
+  'Last 7 Days':  '7d',
+  'Last 30 Days': '30d',
+  'This Month':   'month',
+  'This Year':    'year',
+  'All Time':     'all',
+  'Custom Range': 'custom',
+};
 
 /* ─── Helpers ─── */
 const getStatusClasses = (status) => {
@@ -114,14 +91,14 @@ const getStatusLabel = (status) => {
 };
 
 /* ─── Modal Component ─── */
-const StatusModal = ({ isOpen, onClose, statusObj }) => {
+const StatusModal = ({ isOpen, onClose, statusObj, applications }) => {
   if (!isOpen || !statusObj) return null;
 
-  // Mock filtering based on clicked status
-  const filteredApps = ALL_MOCK_APPS.filter(app => app.status === statusObj.id);
-
-  // Fallback to show some apps if the mock data doesn't have enough to match the count
-  const appsToShow = filteredApps.length > 0 ? filteredApps : ALL_MOCK_APPS.slice(0, Math.min(statusObj.count, 5));
+  // 'applied' is the grand total across every status, everything else
+  // is a real filter against the bucketed application list.
+  const filteredApps = statusObj.id === 'applied'
+    ? applications
+    : applications.filter((app) => app.status === statusObj.id);
 
   useEffect(() => {
     const handleEsc = (e) => { if (e.key === 'Escape') onClose(); };
@@ -170,8 +147,10 @@ const StatusModal = ({ isOpen, onClose, statusObj }) => {
 
         {/* List */}
         <div className="overflow-y-auto p-4 space-y-2 flex-1">
-          {appsToShow.map((app, i) => (
-            <div key={i} className="flex items-center justify-between p-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card)] hover:bg-[var(--bg-card-hover)] hover:border-[var(--border-hover)] transition-all cursor-pointer">
+          {filteredApps.length === 0 ? (
+            <p className="text-center text-sm py-10 text-[var(--text-muted)] font-medium">No applications in this category yet.</p>
+          ) : filteredApps.map((app, i) => (
+            <div key={app.id || i} className="flex items-center justify-between p-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card)] hover:bg-[var(--bg-card-hover)] hover:border-[var(--border-hover)] transition-all cursor-pointer">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg shadow-sm border bg-[var(--card-inner-bg)] border-[var(--border-subtle)] text-[var(--text-primary)]">
                   {app.logo}
@@ -198,9 +177,13 @@ const StatusModal = ({ isOpen, onClose, statusObj }) => {
 export default function InsightsPage() {
   const [activeModal, setActiveModal] = useState(null);
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
-  const [dateFilter, setDateFilter] = useState('Last 30 Days');
+  const [dateFilter, setDateFilter] = useState('All Time');
   const [customStartDate, setCustomStartDate] = useState(null);
   const [customEndDate, setCustomEndDate] = useState(null);
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [insights, setInsights] = useState(null);
 
   // Close dropdown on click outside
   useEffect(() => {
@@ -212,6 +195,57 @@ export default function InsightsPage() {
   }, [isDatePickerOpen]);
 
   const dateOptions = ['Last 7 Days', 'Last 30 Days', 'This Month', 'This Year', 'All Time', 'Custom Range'];
+
+  const fetchInsights = useCallback(async () => {
+    // Custom range needs at least one bound picked before it's worth a call.
+    if (dateFilter === 'Custom Range' && !customStartDate && !customEndDate) return;
+
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await getCandidateInsights({
+        range: RANGE_PARAM[dateFilter] || 'all',
+        startDate: customStartDate ? customStartDate.toISOString() : undefined,
+        endDate:   customEndDate ? customEndDate.toISOString() : undefined,
+      });
+      setInsights(data);
+    } catch (err) {
+      setError(err?.response?.data?.message || 'Failed to load insights. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }, [dateFilter, customStartDate, customEndDate]);
+
+  useEffect(() => { fetchInsights(); }, [fetchInsights]);
+
+  const statusStats = (insights?.statusStats || []).map((s) => ({
+    id: s.id,
+    count: s.count,
+    ...STATUS_META[s.id],
+  }));
+
+  const rolesChart = (insights?.rolesChart || []).map((r, i) => ({
+    ...r,
+    color: ROLE_COLORS[i % ROLE_COLORS.length],
+  }));
+
+  const recentApplications = insights?.recentApplications || [];
+  const upcomingSchedule = insights?.upcomingSchedule || [];
+  const applications = insights?.applications || [];
+  const totalApplications = insights?.totalApplications || 0;
+
+  // Builds the same conic-gradient string the mock version hardcoded,
+  // but from real cumulative percentages.
+  const donutGradient = (() => {
+    if (!rolesChart.length) return 'conic-gradient(var(--border-subtle) 0% 100%)';
+    let acc = 0;
+    const stops = rolesChart.map((r) => {
+      const start = acc;
+      acc += r.percent;
+      return `${r.color} ${start}% ${acc}%`;
+    });
+    return `conic-gradient(${stops.join(', ')})`;
+  })();
 
   return (
     <div className="flex flex-col h-full animate-in fade-in duration-500 relative mt-5 pb-8 font-sans">
@@ -289,146 +323,182 @@ export default function InsightsPage() {
         </div>
       </div>
 
-      {/* ─── Top Stats Row ─── */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-5 mb-12">
-        {STATUS_STATS.map((stat) => {
-          const bgMap = {
-            indigo: 'bg-indigo-500/10 text-indigo-500 dark:text-indigo-400',
-            emerald: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
-            amber: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
-            blue: 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
-            red: 'bg-red-500/10 text-red-600 dark:text-red-400',
-          };
-          
-          return (
-            <div 
-              key={stat.id}
-              onClick={() => setActiveModal(stat)}
-              className="relative overflow-hidden p-5 rounded-2xl border cursor-pointer transition-all duration-300 group shadow-lg bg-[var(--bg-card)] border-[var(--border-card)] hover:bg-[var(--bg-card-hover)] hover:border-[var(--border-hover)] hover:-translate-y-1"
-            >
-              {/* Bottom colored border highlight */}
-              <div 
-                className="absolute bottom-0 left-6 right-6 h-1 rounded-t-full opacity-70 transition-all duration-300 group-hover:left-0 group-hover:right-0 group-hover:opacity-100 group-hover:h-1.5" 
-                style={{ backgroundColor: stat.hex }}
-              />
-              
-              <div className="flex items-start gap-4">
-                <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 border border-[var(--border-subtle)] shadow-inner ${bgMap[stat.color]}`}>
-                  {stat.icon}
-                </div>
-                <div className="flex flex-col mt-0.5">
-                  <span className="font-sans text-[0.75rem] font-semibold tracking-wide uppercase mb-1 text-[var(--text-muted)]">
-                    {stat.label}
-                  </span>
-                  <span className="font-sans text-2xl font-extrabold text-[var(--text-primary)]">
-                    {stat.count}
-                  </span>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      {/* ─── Error banner ─── */}
+      {error && (
+        <div className="mb-6 px-4 py-3 rounded-xl border border-red-500/30 bg-red-500/10 text-red-500 text-sm font-medium flex items-center justify-between">
+          <span>{error}</span>
+          <button onClick={fetchInsights} className="font-semibold underline underline-offset-2 hover:opacity-80">Retry</button>
+        </div>
+      )}
 
-      {/* ─── Chart & Stats Area (Middle Row) ─── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        
-        {/* Pie Chart Card */}
-        <div className="p-7 rounded-2xl border shadow-lg flex flex-col bg-[var(--bg-card)] border-[var(--border-card)]">
-          <h3 className="font-sans text-[1.05rem] font-bold mb-6 text-[var(--text-primary)] tracking-wide">Top Job Roles Applied</h3>
-          
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-12 flex-1 pt-4">
-            {/* CSS Conic Gradient Donut Chart */}
-            <div 
-              className="w-64 h-64 sm:w-72 sm:h-72 rounded-full relative flex items-center justify-center shadow-[0_0_30px_rgba(0,0,0,0.1)] shrink-0"
-              style={{ background: 'conic-gradient(#8b5cf6 0% 42.9%, #10b981 42.9% 64.3%, #f59e0b 64.3% 82.2%, #3b82f6 82.2% 92.9%, #f43f5e 92.9% 100%)' }}
-            >
-              <div className="w-40 h-40 sm:w-48 sm:h-48 rounded-full flex flex-col items-center justify-center shadow-[inset_0_2px_15px_rgba(0,0,0,0.2)] z-10 bg-[var(--bg-card)]">
-                <span className="font-sans text-4xl font-extrabold text-[var(--text-primary)]">28</span>
-                <span className="font-sans text-[0.8rem] font-medium mt-1 text-[var(--text-muted)] tracking-wide uppercase">Total</span>
+      {/* ─── Loading skeleton ─── */}
+      {loading && !insights ? (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-5 mb-12">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="h-[104px] rounded-2xl border animate-pulse bg-[var(--bg-card)] border-[var(--border-card)]" />
+          ))}
+        </div>
+      ) : totalApplications === 0 ? (
+        <div className="flex flex-col items-center justify-center text-center py-24 rounded-2xl border bg-[var(--bg-card)] border-[var(--border-card)] mb-8">
+          <div className="w-14 h-14 rounded-2xl border-2 border-dashed border-[var(--border-subtle)] flex items-center justify-center opacity-40 mb-4">
+            <IconBriefcase />
+          </div>
+          <h3 className="text-[1rem] font-bold text-[var(--text-primary)] mb-1">No applications yet</h3>
+          <p className="text-[0.85rem] text-[var(--text-muted)] max-w-sm">
+            Once you start applying to jobs, your application journey will show up here.
+          </p>
+        </div>
+      ) : (
+        <>
+          {/* ─── Top Stats Row ─── */}
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-5 mb-12">
+            {statusStats.map((stat) => {
+              const bgMap = {
+                indigo: 'bg-indigo-500/10 text-indigo-500 dark:text-indigo-400',
+                emerald: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+                amber: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
+                blue: 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
+                red: 'bg-red-500/10 text-red-600 dark:text-red-400',
+              };
+
+              return (
+                <div 
+                  key={stat.id}
+                  onClick={() => setActiveModal(stat)}
+                  className="relative overflow-hidden p-5 rounded-2xl border cursor-pointer transition-all duration-300 group shadow-lg bg-[var(--bg-card)] border-[var(--border-card)] hover:bg-[var(--bg-card-hover)] hover:border-[var(--border-hover)] hover:-translate-y-1"
+                >
+                  {/* Bottom colored border highlight */}
+                  <div 
+                    className="absolute bottom-0 left-6 right-6 h-1 rounded-t-full opacity-70 transition-all duration-300 group-hover:left-0 group-hover:right-0 group-hover:opacity-100 group-hover:h-1.5" 
+                    style={{ backgroundColor: stat.hex }}
+                  />
+                  
+                  <div className="flex items-start gap-4">
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 border border-[var(--border-subtle)] shadow-inner ${bgMap[stat.color]}`}>
+                      {stat.icon}
+                    </div>
+                    <div className="flex flex-col mt-0.5">
+                      <span className="font-sans text-[0.75rem] font-semibold tracking-wide uppercase mb-1 text-[var(--text-muted)]">
+                        {stat.label}
+                      </span>
+                      <span className="font-sans text-2xl font-extrabold text-[var(--text-primary)]">
+                        {stat.count}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* ─── Chart & Stats Area (Middle Row) ─── */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            
+            {/* Pie Chart Card */}
+            <div className="p-7 rounded-2xl border shadow-lg flex flex-col bg-[var(--bg-card)] border-[var(--border-card)]">
+              <h3 className="font-sans text-[1.05rem] font-bold mb-6 text-[var(--text-primary)] tracking-wide">Top Job Roles Applied</h3>
+              
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-12 flex-1 pt-4">
+                {/* CSS Conic Gradient Donut Chart */}
+                <div 
+                  className="w-64 h-64 sm:w-72 sm:h-72 rounded-full relative flex items-center justify-center shadow-[0_0_30px_rgba(0,0,0,0.1)] shrink-0"
+                  style={{ background: donutGradient }}
+                >
+                  <div className="w-40 h-40 sm:w-48 sm:h-48 rounded-full flex flex-col items-center justify-center shadow-[inset_0_2px_15px_rgba(0,0,0,0.2)] z-10 bg-[var(--bg-card)]">
+                    <span className="font-sans text-4xl font-extrabold text-[var(--text-primary)]">{totalApplications}</span>
+                    <span className="font-sans text-[0.8rem] font-medium mt-1 text-[var(--text-muted)] tracking-wide uppercase">Total</span>
+                  </div>
+                </div>
+                
+                {/* Legend */}
+                <div className="flex flex-col gap-4">
+                  {rolesChart.length === 0 ? (
+                    <p className="text-[0.85rem] text-[var(--text-muted)] font-medium">No applications in this range yet.</p>
+                  ) : rolesChart.map((role, i) => (
+                    <div key={i} className="flex items-center gap-3">
+                      <span className="w-4 h-4 rounded-md shadow-sm border border-black/10 dark:border-black/30" style={{ backgroundColor: role.color }}></span>
+                      <div>
+                        <p className="font-sans text-[0.9rem] font-bold leading-tight text-[var(--text-primary)] tracking-wide">{role.label}</p>
+                        <p className="font-sans text-[0.8rem] text-[var(--text-muted)] font-medium">{role.count} ({role.percent}%)</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
             
-            {/* Legend */}
-            <div className="flex flex-col gap-4">
-              {ROLES_CHART.map((role, i) => (
-                <div key={i} className="flex items-center gap-3">
-                  <span className="w-4 h-4 rounded-md shadow-sm border border-black/10 dark:border-black/30" style={{ backgroundColor: role.color }}></span>
-                  <div>
-                    <p className="font-sans text-[0.9rem] font-bold leading-tight text-[var(--text-primary)] tracking-wide">{role.label}</p>
-                    <p className="font-sans text-[0.8rem] text-[var(--text-muted)] font-medium">{role.count} ({role.percent}%)</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-        
-        <div className="p-6 rounded-2xl border shadow-lg flex flex-col bg-[var(--bg-card)] border-[var(--border-card)]">
-          <div className="flex items-center justify-between mb-5">
-            <h3 className="font-sans text-[1.05rem] font-bold text-[var(--text-primary)] tracking-wide">Recent Applications</h3>
-          </div>
-          
-          <div className="flex flex-col gap-3 flex-1 overflow-y-auto">
-            {RECENT_APPS.map(app => (
-              <div key={app.id} className="flex items-center justify-between p-3 rounded-xl transition-colors bg-[var(--card-inner-bg)] hover:bg-[var(--bg-card-hover)] border border-transparent hover:border-[var(--border-hover)] cursor-pointer">
-                <div className="flex items-center gap-3.5">
-                  <div className="w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm shadow-inner bg-[var(--card-inner-bg)] border border-[var(--border-subtle)] text-[var(--text-primary)]">
-                    {app.logo}
-                  </div>
-                  <div>
-                    <h4 className="font-sans font-bold text-[0.9rem] text-[var(--text-primary)] tracking-wide">{app.role}</h4>
-                    <p className="font-sans text-[0.8rem] mt-0.5 text-[var(--text-muted)] font-medium">{app.company}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-4 text-right">
-                  <span className={`inline-flex px-2 py-0.5 rounded-full font-sans text-[0.7rem] font-bold uppercase tracking-wide ${getStatusClasses(app.status)}`}>
-                    {getStatusLabel(app.status)}
-                  </span>
-                  <span className="font-sans text-[0.75rem] w-16 text-[var(--text-muted)] font-medium">{app.date}</span>
-                </div>
+            <div className="p-6 rounded-2xl border shadow-lg flex flex-col bg-[var(--bg-card)] border-[var(--border-card)]">
+              <div className="flex items-center justify-between mb-5">
+                <h3 className="font-sans text-[1.05rem] font-bold text-[var(--text-primary)] tracking-wide">Recent Applications</h3>
               </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* ─── Bottom Row (Upcoming Schedule) ─── */}
-      <div className="p-6 rounded-2xl border shadow-lg mb-6 bg-[var(--bg-card)] border-[var(--border-card)]">
-        <div className="flex items-center justify-between mb-5">
-          <h3 className="font-sans text-[1.05rem] font-bold text-[var(--text-primary)] tracking-wide">Upcoming Schedule</h3>
-        </div>
-        
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {UPCOMING.map(item => (
-            <div key={item.id} className="flex items-center justify-between p-4 rounded-xl border transition-colors bg-[var(--card-inner-bg)] border-[var(--border-subtle)] hover:border-[var(--border-hover)] hover:bg-[var(--bg-card-hover)]">
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-full flex items-center justify-center shadow-inner bg-[var(--card-inner-bg)] border border-[var(--border-subtle)] text-[var(--text-secondary)]">
-                  <IconCalendar />
-                </div>
-                <div>
-                  <h4 className="font-sans font-bold text-[0.9rem] text-[var(--text-primary)] tracking-wide">{item.role}</h4>
-                  <p className="font-sans text-[0.8rem] mt-0.5 text-[var(--text-muted)] font-medium">{item.company}</p>
-                </div>
-              </div>
-              <div className="text-right">
-                <span className="inline-block px-3 py-1.5 rounded-full font-sans text-[0.7rem] font-bold tracking-wide uppercase mb-1 bg-black/5 dark:bg-white/10 text-[var(--text-secondary)]">
-                  {item.stage}
-                </span>
-                <p className="font-sans text-[0.75rem] text-[var(--text-muted)] font-medium">{item.date} {item.time && `• ${item.time}`}</p>
+              
+              <div className="flex flex-col gap-3 flex-1 overflow-y-auto">
+                {recentApplications.length === 0 ? (
+                  <p className="text-[0.85rem] text-[var(--text-muted)] font-medium">No recent applications in this range.</p>
+                ) : recentApplications.map(app => (
+                  <div key={app.id} className="flex items-center justify-between p-3 rounded-xl transition-colors bg-[var(--card-inner-bg)] hover:bg-[var(--bg-card-hover)] border border-transparent hover:border-[var(--border-hover)] cursor-pointer">
+                    <div className="flex items-center gap-3.5">
+                      <div className="w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm shadow-inner bg-[var(--card-inner-bg)] border border-[var(--border-subtle)] text-[var(--text-primary)]">
+                        {app.logo}
+                      </div>
+                      <div>
+                        <h4 className="font-sans font-bold text-[0.9rem] text-[var(--text-primary)] tracking-wide">{app.role}</h4>
+                        <p className="font-sans text-[0.8rem] mt-0.5 text-[var(--text-muted)] font-medium">{app.company}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4 text-right">
+                      <span className={`inline-flex px-2 py-0.5 rounded-full font-sans text-[0.7rem] font-bold uppercase tracking-wide ${getStatusClasses(app.status)}`}>
+                        {getStatusLabel(app.status)}
+                      </span>
+                      <span className="font-sans text-[0.75rem] w-16 text-[var(--text-muted)] font-medium">{app.date}</span>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
-          ))}
-        </div>
-      </div>
+          </div>
 
-
+          {/* ─── Bottom Row (Upcoming Schedule) ─── */}
+          <div className="p-6 rounded-2xl border shadow-lg mb-6 bg-[var(--bg-card)] border-[var(--border-card)]">
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="font-sans text-[1.05rem] font-bold text-[var(--text-primary)] tracking-wide">Upcoming Schedule</h3>
+            </div>
+            
+            {upcomingSchedule.length === 0 ? (
+              <p className="text-[0.85rem] text-[var(--text-muted)] font-medium">Nothing pending right now — you're all caught up.</p>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {upcomingSchedule.map(item => (
+                  <div key={item.id} className="flex items-center justify-between p-4 rounded-xl border transition-colors bg-[var(--card-inner-bg)] border-[var(--border-subtle)] hover:border-[var(--border-hover)] hover:bg-[var(--bg-card-hover)]">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-full flex items-center justify-center shadow-inner bg-[var(--card-inner-bg)] border border-[var(--border-subtle)] text-[var(--text-secondary)]">
+                        <IconCalendar />
+                      </div>
+                      <div>
+                        <h4 className="font-sans font-bold text-[0.9rem] text-[var(--text-primary)] tracking-wide">{item.role}</h4>
+                        <p className="font-sans text-[0.8rem] mt-0.5 text-[var(--text-muted)] font-medium">{item.company}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <span className="inline-block px-3 py-1.5 rounded-full font-sans text-[0.7rem] font-bold tracking-wide uppercase mb-1 bg-black/5 dark:bg-white/10 text-[var(--text-secondary)]">
+                        {item.stage}
+                      </span>
+                      <p className="font-sans text-[0.75rem] text-[var(--text-muted)] font-medium">{item.date}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </>
+      )}
 
       {/* Modals */}
       <StatusModal 
         isOpen={!!activeModal} 
         onClose={() => setActiveModal(null)} 
         statusObj={activeModal} 
+        applications={applications}
       />
       
       {/* Spacer to guarantee scrollable bottom space */}

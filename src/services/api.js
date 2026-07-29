@@ -272,6 +272,25 @@ export const getCompanyDashboard = async ({ refresh = false } = {}) => {
 };
 
 /* ══════════════════════════════════════════════════
+   CANDIDATE INSIGHTS
+══════════════════════════════════════════════════ */
+
+/**
+ * Everything the Insights page shows: status stat cards, top-roles
+ * donut chart, recent applications, upcoming schedule, and the full
+ * bucketed applications list (used for the click-through modal).
+ * `range` matches InsightsPage.jsx's date dropdown: '7d' | '30d' |
+ * 'month' | 'year' | 'all' | 'custom' (custom needs startDate/endDate,
+ * both ISO date strings).
+ */
+export const getCandidateInsights = async ({ range = 'all', startDate, endDate } = {}) => {
+  const { data } = await api.get('/dashboard/insights', {
+    params: { range, startDate, endDate },
+  });
+  return data.data;
+};
+
+/* ══════════════════════════════════════════════════
    JOBS (company side — posting & managing listings)
 ══════════════════════════════════════════════════ */
 

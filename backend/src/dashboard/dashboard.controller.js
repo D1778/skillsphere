@@ -18,4 +18,17 @@ const getDashboard = async (req, res, next) => {
   }
 };
 
-module.exports = { getDashboard };
+/* GET /api/dashboard/insights?range=7d|30d|month|year|all|custom&startDate=&endDate=
+   Candidate-only. Powers the Insights page (status cards, top-roles
+   donut, recent applications, upcoming schedule). */
+const getInsights = async (req, res, next) => {
+  try {
+    const { range, startDate, endDate } = req.query;
+    const data = await dashboardService.getCandidateInsights(req.user._id, { range, startDate, endDate });
+    sendSuccess(res, { data });
+  } catch (err) {
+    next(err);
+  }
+};
+
+module.exports = { getDashboard, getInsights };

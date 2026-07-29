@@ -409,4 +409,206 @@ const getDashboard = async (companyId, { forceRefreshRecommendations = false } =
   };
 };
 
-module.exports = { getDashboard };
+/* ══════════════════════════════════════════════════
+   CANDIDATE INSIGHTS PAGE
+   Mirrors the company dashboard above, but from the candidate's side:
+   aggregates every job this candidate has applied to into the stat
+   cards / donut chart / recent list / upcoming schedule the Insights
+   page renders. Nothing here is per-job — job.service.js's
+   listMyApplications() still covers "show me my applications" as a
+   flat list; this is the "zoom out" analytics view.
+══════════════════════════════════════════════════ */
+
+/* Maps the 6 real pipeline statuses (job.model.js ApplicationSchema)
+   down to the 4 mutually-exclusive buckets the Insights stat cards
+   show (the 5th, 'applied', is just the grand total — see buildStatusStats). */
+const STATUS_BUCKET = {
+  new:         'in_review',
+  reviewed:    'in_review',
+  shortlisted: 'shortlisted',
+  interview:   'interviewed',
+  hired:       'interviewed',
+  rejected:    'rejected',
+};
+
+const RANGE_MS = {
+  '7d':   7  * DAY_MS,
+  '30d':  30 * DAY_MS,
+  'year': 365 * DAY_MS,
+};
+
+/**
+ * Resolves the date-range dropdown value (see InsightsPage.jsx's
+ * `dateOptions`) into a concrete [start, end] window. 'all' and
+ * unrecognized values return null bounds (no filtering).
+ */
+const resolveDateRange = ({ range, startDate, endDate } = {}) => {
+  const now = new Date();
+
+  if (range === 'custom' && (startDate || endDate)) {
+    return {
+      start: startDate ? new Date(startDate) : null,
+      end:   endDate ? new Date(endDate) : null,
+    };
+  }
+  if (range === 'month') {
+    return { start: new Date(now.getFullYear(), now.getMonth(), 1), end: null };
+  }
+  if (RANGE_MS[range]) {
+    return { start: new Date(now.getTime() - RANGE_MS[range]), end: null };
+  }
+  return { start: null, end: null }; // 'all' or unspecified
+};
+
+const inRange = (date, { start, end }) => {
+  const d = new Date(date);
+  if (start && d < start) return false;
+  if (end && d > end) return false;
+  return true;
+};
+
+/** Same "time ago" formatting the notification model uses, duplicated
+ *  locally to keep the two modules independent. */
+const formatTimeAgo = (date) => {
+  const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
+  if (seconds < 60) return 'Just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  const weeks = Math.floor(days / 7);
+  if (weeks < 5) return `${weeks}w ago`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `${months}mo ago`;
+  const years = Math.floor(days / 365);
+  return `${years}y ago`;
+};
+
+const companyInitials = (name = 'Company') =>
+  name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 3)
+    .map((w) => w[0])
+    .join('')
+    .toUpperCase() || 'CO';
+
+/** Stage/date copy for the "Upcoming Schedule" card — this platform has
+ *  no dedicated interview-scheduling field yet, so this approximates
+ *  "what needs your attention next" from the pipeline stage + the last
+ *  time it changed, rather than a literal calendar invite. */
+const UPCOMING_STAGE_COPY = {
+  new:         { stage: 'Waiting for Response', useAppliedAt: true },
+  reviewed:    { stage: 'Under Review',          useAppliedAt: false },
+  shortlisted: { stage: 'Shortlisted — Awaiting Next Step', useAppliedAt: false },
+  interview:   { stage: 'Interview Round',       useAppliedAt: false },
+};
+
+const getCandidateInsights = async (candidateId, { range, startDate, endDate } = {}) => {
+  const window = resolveDateRange({ range, startDate, endDate });
+
+  const jobs = await Job.find({ 'applications.candidateId': candidateId })
+    .populate('companyId', 'companyName photoURL')
+    .lean();
+
+  // Flatten each job down to just *this* candidate's application, paired
+  // with the job/company info the UI needs to render a row.
+  let applications = jobs
+    .map((job) => {
+      const app = (job.applications || []).find((a) => String(a.candidateId) === String(candidateId));
+      if (!app) return null;
+      return {
+        id:              String(job._id),
+        jobId:           String(job._id),
+        role:            job.title || 'Untitled Role',
+        company:         job.companyId?.companyName || 'Company',
+        logo:            companyInitials(job.companyId?.companyName),
+        status:          app.status,
+        statusBucket:    STATUS_BUCKET[app.status] || 'in_review',
+        appliedAt:       app.appliedAt,
+        statusUpdatedAt: app.statusUpdatedAt || app.appliedAt,
+      };
+    })
+    .filter(Boolean)
+    .filter((a) => inRange(a.appliedAt, window));
+
+  applications.sort((a, b) => new Date(b.appliedAt) - new Date(a.appliedAt));
+
+  /* ── Stat cards ──
+     'applied' is the grand total (all statuses); the other four are a
+     strict partition of the 6 real statuses (see STATUS_BUCKET), so
+     they always sum back up to the total. */
+  const bucketCounts = { shortlisted: 0, in_review: 0, interviewed: 0, rejected: 0 };
+  applications.forEach((a) => { bucketCounts[a.statusBucket] += 1; });
+
+  const statusStats = [
+    { id: 'applied',     count: applications.length },
+    { id: 'shortlisted', count: bucketCounts.shortlisted },
+    { id: 'in_review',   count: bucketCounts.in_review },
+    { id: 'interviewed', count: bucketCounts.interviewed },
+    { id: 'rejected',    count: bucketCounts.rejected },
+  ];
+
+  /* ── Top roles donut chart ── */
+  const roleCounts = new Map();
+  applications.forEach((a) => roleCounts.set(a.role, (roleCounts.get(a.role) || 0) + 1));
+  const rankedRoles = [...roleCounts.entries()].sort((a, b) => b[1] - a[1]);
+
+  const TOP_N = 4;
+  const topRoles = rankedRoles.slice(0, TOP_N);
+  const otherCount = rankedRoles.slice(TOP_N).reduce((sum, [, count]) => sum + count, 0);
+  const total = applications.length || 1; // avoid /0 when there's nothing yet
+
+  const rolesChart = [
+    ...topRoles.map(([label, count]) => ({
+      label, count, percent: Math.round((count / total) * 1000) / 10,
+    })),
+    ...(otherCount > 0
+      ? [{ label: 'Other', count: otherCount, percent: Math.round((otherCount / total) * 1000) / 10 }]
+      : []),
+  ];
+
+  /* ── Recent applications (top 5, already sorted newest-first) ── */
+  const recentApplications = applications.slice(0, 5).map((a) => ({
+    id: a.id, company: a.company, logo: a.logo, role: a.role,
+    status: a.statusBucket, date: formatTimeAgo(a.appliedAt),
+  }));
+
+  /* ── Upcoming schedule: active (non-terminal) applications, most
+     recently updated first — hired/rejected are resolved, so excluded. */
+  const upcomingSchedule = applications
+    .filter((a) => UPCOMING_STAGE_COPY[a.status])
+    .sort((a, b) => new Date(b.statusUpdatedAt) - new Date(a.statusUpdatedAt))
+    .slice(0, 6)
+    .map((a) => {
+      const copy = UPCOMING_STAGE_COPY[a.status];
+      const dateSource = copy.useAppliedAt ? a.appliedAt : a.statusUpdatedAt;
+      return {
+        id: a.id,
+        company: a.company,
+        role: a.role,
+        stage: copy.stage,
+        date: copy.useAppliedAt
+          ? `Applied on ${new Date(dateSource).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`
+          : new Date(dateSource).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
+      };
+    });
+
+  return {
+    totalApplications: applications.length,
+    statusStats,
+    rolesChart,
+    recentApplications,
+    upcomingSchedule,
+    // Full list (bucketed + newest-first) so the frontend's status-card
+    // click-through modal can filter client-side without another call.
+    applications: applications.map((a) => ({
+      id: a.id, company: a.company, logo: a.logo, role: a.role,
+      status: a.statusBucket, rawStatus: a.status, date: formatTimeAgo(a.appliedAt),
+    })),
+  };
+};
+
+module.exports = { getDashboard, getCandidateInsights };
