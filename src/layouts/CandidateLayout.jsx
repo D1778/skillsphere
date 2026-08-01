@@ -1,6 +1,7 @@
 import React from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import DashboardLayout from '../components/shared/DashboardLayout';
+import GlobalChatbot from '../components/chatbot/GlobalChatbot';
 
 const TITLES = {
   '/dashboard/candidate': 'Dashboard',
@@ -23,6 +24,7 @@ export default function CandidateLayout() {
   return (
     <DashboardLayout role="Candidate" pageTitle={TITLES[pathname] || 'Dashboard'}>
       <Outlet />
+      <GlobalChatbot role="candidate" />
     </DashboardLayout>
   );
 }
