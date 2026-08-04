@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { LogoMark } from '../../components/shared/Topbar';
 import { searchCandidates } from '../../services/api';
 import CandidateProfileModal from '../../components/modals/CandidateProfileModal';
 

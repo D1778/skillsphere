@@ -32,10 +32,69 @@ const flattenProfileSkills = (profile) => [
  * many requests) and as the non-AI fallback ranking when Gemini is
  * unavailable/misconfigured/rate-limited.
  */
+// Normalizes punctuation/spacing only (kept conservative on purpose):
+// "Node.js" / "NodeJS" / "node js" all collapse to "nodejs" and match.
+// Deliberately does NOT do substring/fuzzy matching — that would wrongly
+// match e.g. "Java" against "JavaScript" since one is a literal substring
+// of the other. Symbols that actually distinguish skills (+, #) are kept,
+// so "C++" and "C#" stay distinct from "C" and from each other.
+const normalizeSkill = (s) => String(s).toLowerCase().trim().replace(/[\s.\-_/]+/g, '');
+
+// Explicit alias table for common tech-skill spellings/abbreviations that
+// normalizeSkill() alone can't unify (e.g. "React" vs "ReactJS", "JS" vs
+// "JavaScript"). Keys/values here are already in normalizeSkill()'s output
+// form (lowercase, no spaces/dots/dashes/underscores/slashes) since that's
+// what they're matched against. This is intentionally an explicit list
+// rather than fuzzy/substring matching, specifically so things like "Java"
+// vs "JavaScript" never get wrongly conflated. Add more pairs here as you
+// notice real mismatches — it's a flat, safe list to extend.
+const SKILL_ALIASES = {
+  react:        ['reactjs'],
+  javascript:   ['js'],
+  typescript:   ['ts'],
+  nodejs:       ['node'],
+  python:       ['python3', 'py'],
+  'c++':        ['cpp', 'cplusplus'],
+  'c#':         ['csharp'],
+  postgresql:   ['postgres', 'psql'],
+  mongodb:      ['mongo'],
+  restapi:      ['rest', 'restful', 'restfulapi'],
+  expressjs:    ['express'],
+  nextjs:       ['next'],
+  vuejs:        ['vue'],
+  angularjs:    ['angular'],
+  html:         ['html5'],
+  css:          ['css3'],
+  uiux:         ['uxui'],
+  aws:          ['amazonwebservices'],
+  gcp:          ['googlecloud', 'googlecloudplatform'],
+  tailwindcss:  ['tailwind'],
+  kubernetes:   ['k8s'],
+  // Note: deliberately NOT aliasing sql <-> mysql — mysql is its own
+  // distinct, more specific skill, not just alternate wording for "sql".
+};
+
+const SKILL_ALIAS_LOOKUP = Object.entries(SKILL_ALIASES).reduce((map, [canonical, aliases]) => {
+  map[canonical] = canonical;
+  aliases.forEach((alias) => { map[alias] = canonical; });
+  return map;
+}, {});
+
+// normalize, then fold known aliases down to one canonical spelling before
+// comparing.
+const canonicalizeSkill = (s) => {
+  const normalized = normalizeSkill(s);
+  return SKILL_ALIAS_LOOKUP[normalized] || normalized;
+};
+
 const skillMatchPercent = (jobSkills = [], profileSkills = []) => {
-  if (!jobSkills.length) return null;
-  const profileSet = new Set(profileSkills);
-  const overlap = jobSkills.filter((s) => profileSet.has(s.toLowerCase().trim())).length;
+  // No job skills to compare against, OR no candidate skills on file
+  // (never filled Profile Builder / no profile yet) — either way there's
+  // nothing to honestly compute a score from, so return "no data" (null,
+  // rendered as "—") rather than a misleading 0%.
+  if (!jobSkills.length || !profileSkills.length) return null;
+  const profileSet = new Set(profileSkills.map(canonicalizeSkill));
+  const overlap = jobSkills.filter((s) => profileSet.has(canonicalizeSkill(s))).length;
   return Math.round((overlap / jobSkills.length) * 100);
 };
 
@@ -189,6 +248,11 @@ const RECOMMENDATION_TTL_MS = Number(process.env.DASHBOARD_RECOMMENDATION_TTL_HO
 // button.
 const MIN_REFRESH_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
 const RECOMMEND_COUNT = 6;
+// A candidate with essentially no skill overlap isn't a "recommendation" —
+// this is enforced in code (not just asked for in the prompt) so neither
+// the local fallback nor a Gemini response that ignores the instruction
+// can pad the list with 0%/near-0% matches just to fill RECOMMEND_COUNT.
+const MIN_RECOMMEND_MATCH_PERCENT = Number(process.env.DASHBOARD_MIN_MATCH_PERCENT || 20);
 // Cap on how many applications we ever hand to Gemini in one prompt —
 // keeps the request small/fast/cheap regardless of how large the
 // company's applicant pool has grown.
@@ -257,6 +321,9 @@ const localFallbackPicks = (summaries) =>
       matchPercent: skillMatchPercent(s.job.skills, s.candidateSkills),
       reason:       'Ranked by overlapping skills with the job listing.',
     }))
+    // A candidate below the threshold (or with no scoreable skills at all)
+    // isn't a real recommendation — drop rather than pad the list with them.
+    .filter((p) => (p.matchPercent || 0) >= MIN_RECOMMEND_MATCH_PERCENT)
     .sort((a, b) => (b.matchPercent || 0) - (a.matchPercent || 0))
     .slice(0, RECOMMEND_COUNT);
 
@@ -274,6 +341,9 @@ const getGeminiCandidatePicks = async (summaries) => {
   const validIds = new Set(summaries.map((s) => `${s.id}::${s.jobId}`));
   return data.picks
     .filter((p) => p?.id && p?.jobId && validIds.has(`${p.id}::${p.jobId}`))
+    // Gemini is only *asked* not to pad with weak matches — enforce it
+    // here too, since it doesn't reliably follow that on its own.
+    .filter((p) => typeof p.matchPercent !== 'number' || p.matchPercent >= MIN_RECOMMEND_MATCH_PERCENT)
     .slice(0, RECOMMEND_COUNT)
     .map((p) => ({
       candidateId:  p.id,

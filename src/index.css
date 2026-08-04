@@ -1,6 +1,21 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
 @import "tailwindcss";
 
+/* The app's theme toggle (useTheme.js) sets a `data-theme="dark"|"light"`
+   attribute on <html> — it does NOT add a `.dark` class, and it does not
+   rely on the OS `prefers-color-scheme` media query. Tailwind v4's `dark:`
+   variant defaults to `@media (prefers-color-scheme: dark)` unless told
+   otherwise, so every `dark:*` utility in the app (e.g. the chatbot's
+   `dark:hover:bg-cyan-500/10`) was silently only working when the OS/
+   browser itself was set to dark — not when the user flipped the in-app
+   toggle. That mismatch is what caused hover states (like the chatbot's
+   suggested-prompt buttons) to become unreadable: the hover background
+   utility never applied, but --text-primary was already white from the
+   dark :root defaults, so white text sat on the light default background.
+   Wiring `dark:` to the same attribute the toggle actually sets fixes
+   every `dark:` utility across the app, not just the chatbot. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 @theme {
   --font-sans: 'Outfit', sans-serif;
 }

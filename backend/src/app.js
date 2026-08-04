@@ -14,9 +14,19 @@ const jobRoutes      = require('./job/job.routes');
 const candidateRoutes = require('./candidate/candidate.routes');
 const dashboardRoutes = require('./dashboard/dashboard.routes');
 const notificationRoutes = require('./notification/notification.routes');
+const chatbotRoutes  = require('./chatbot/chatbot.routes');
 const AppError      = require('./utils/AppError');
 
 const app = express();
+
+// Render (like most PaaS hosts) sits behind its own reverse proxy and
+// sets X-Forwarded-For on every request. Without telling Express to
+// trust it, express-rate-limit can't safely derive each client's real
+// IP from that header (it refuses to guess, to avoid trusting a header
+// a client could spoof directly). `1` means: trust exactly one hop in
+// front of us — Render's proxy — not an arbitrary chain, which is the
+// correct/safe setting for this platform.
+app.set('trust proxy', 1);
 
 // helmet()'s default Cross-Origin-Resource-Policy is 'same-origin', which
 // blocks the browser from rendering <img src="http://localhost:5000/uploads/..">
@@ -73,6 +83,7 @@ app.use('/api/jobs',    jobRoutes);
 app.use('/api/candidates', candidateRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/chatbot', chatbotRoutes);
 
 app.use((req, _res, next) => next(new AppError(`Route ${req.originalUrl} not found.`, 404)));
 

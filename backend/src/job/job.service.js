@@ -254,7 +254,10 @@ const applyToJob = async (candidate, jobId, body, file) => {
   let resumeSource, resumeUrl, resumeName;
   if (file) {
     resumeSource = 'upload';
-    resumeUrl    = `/uploads/resumes/${file.filename}`;
+    // `file.path` is set by multer-storage-cloudinary to the asset's
+    // full https secure_url — already fetchable from anywhere, no
+    // BASE_URL prefixing needed on the frontend.
+    resumeUrl    = file.path;
     resumeName   = file.originalname;
   } else if (shareProfile) {
     resumeSource = 'profile';
