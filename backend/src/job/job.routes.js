@@ -5,6 +5,11 @@ const { Router } = require('express');
 const multer      = require('multer');
 const path        = require('path');
 const fs          = require('fs');
+// Handles both export shapes across versions of this package: v3+ exports
+// { CloudinaryStorage }, v1/v2 export the class directly as module.exports.
+const multerStorageCloudinary = require('multer-storage-cloudinary');
+const CloudinaryStorage = multerStorageCloudinary.CloudinaryStorage || multerStorageCloudinary;
+const cloudinary  = require('../config/cloudinary');
 const { authenticate, authorize } = require('../auth/auth.middleware');
 const AppError    = require('../utils/AppError');
 const controller  = require('./job.controller');
@@ -44,25 +49,30 @@ const attachmentUpload = upload.fields([
   { name: 'companyBrochurePdf', maxCount: 1 },
 ]);
 
-/* ── Storage for candidate resume uploads (apply flow). Separate folder
-   and looser file-type filter than the company attachments above, since
-   resumes come as PDF/DOC/DOCX and are capped at 2MB (matches the
-   "less than 2MB" copy in the apply modal). ── */
-const RESUME_DIR = path.join(__dirname, '../../uploads/resumes');
-fs.mkdirSync(RESUME_DIR, { recursive: true });
-
-const resumeStorage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, RESUME_DIR),
-  filename: (req, file, cb) => {
-    cb(null, `${req.user?._id || 'anon'}-${Date.now()}${path.extname(file.originalname)}`);
-  },
-});
-
+/* ── Storage for candidate resume uploads (apply flow). Resumes are
+   pushed straight to Cloudinary instead of local disk, so they survive
+   deploys/restarts and can be fetched from anywhere via a plain https
+   URL. `resource_type: 'raw'` is used because PDFs/DOC/DOCX aren't
+   images — Cloudinary would otherwise try (and fail) to treat them as
+   one. Looser file-type filter than the company attachments above,
+   since resumes come as PDF/DOC/DOCX and are capped at 2MB (matches
+   the "less than 2MB" copy in the apply modal). ── */
 const RESUME_MIME_TYPES = [
   'application/pdf',
   'application/msword',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 ];
+
+const resumeStorage = new CloudinaryStorage({
+  cloudinary,
+  params: async (req, file) => ({
+    folder:        'skillsphere/resumes',
+    resource_type: 'raw',
+    // Keep the original extension in the stored public_id so the file
+    // opens correctly (Cloudinary raw assets don't infer a format).
+    public_id:     `${req.user?._id || 'anon'}-${Date.now()}${path.extname(file.originalname)}`,
+  }),
+});
 
 const resumeUpload = multer({
   storage: resumeStorage,
