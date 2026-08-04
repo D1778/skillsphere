@@ -1,32 +1,21 @@
 const crypto     = require('crypto');
 const bcrypt     = require('bcryptjs');
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 const mongoose   = require('mongoose');
 const AppError   = require('./AppError');
 
-/* ── Transporter ─────────────────────────────────── */
-let _transporter = null;
-const getTransporter = () => {
-  if (_transporter) return _transporter;
-  _transporter = nodemailer.createTransport({
-    host:   process.env.SMTP_HOST || 'smtp.zoho.in',
-    port:   Number(process.env.SMTP_PORT) || 465,
-    secure: true,
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
-    // DEV-ONLY escape hatch for "unable to verify the first certificate",
-    // which is almost always a local proxy/antivirus doing TLS inspection
-    // on a dev machine. Never set SMTP_ALLOW_INSECURE_TLS in production —
-    // the proper fix there is trusting the actual intercepting CA via
-    // NODE_EXTRA_CA_CERTS, not skipping verification.
-    tls: process.env.SMTP_ALLOW_INSECURE_TLS === 'true'
-      ? { rejectUnauthorized: false }
-      : undefined,
-  });
-  return _transporter;
+/* ── Resend client ────────────────────────────────
+   Sends over plain HTTPS (port 443), same as any other API call — unlike
+   raw SMTP sockets, there's no port to get silently blocked/filtered by
+   a host's outbound network rules. That's what was causing requests to
+   hang for minutes against smtp.zoho.in:465 on Render before timing out. */
+let _resend = null;
+const getResend = () => {
+  if (_resend) return _resend;
+  _resend = new Resend(process.env.RESEND_API_KEY);
+  return _resend;
 };
+
 
 /* ── OtpRecord schema ────────────────────────────── */
 const OtpRecordSchema = new mongoose.Schema({
@@ -209,14 +198,15 @@ const sendOtp = async (email, purpose) => {
     : 'Reset your SkillSphere password';
 
   try {
-    await getTransporter().sendMail({
+    const { error } = await getResend().emails.send({
       from:    process.env.EMAIL_FROM,
       to:      email,
       subject,
       html:    buildEmailHtml(code, purpose, OTP_EXPIRES_MIN),
     });
+    if (error) throw error;
   } catch (err) {
-    console.error('[Zoho] sendOtp error:', err.message);
+    console.error('[Resend] sendOtp error:', err.message || err);
     throw new AppError('Failed to send OTP email. Please try again.', 500);
   }
 };
