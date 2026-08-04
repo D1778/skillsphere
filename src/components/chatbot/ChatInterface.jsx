@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { sendChatMessage } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
 
 // Icons
 const IconClose = () => (
@@ -64,8 +66,29 @@ const IconCalendar = () => (
 import { Logo, SkillSphereWordmark } from '../shared/Logo';
 
 export default function ChatInterface({ role, onClose }) {
+  const { user } = useAuth();
   const [message, setMessage] = useState('');
   const [chatHistory, setChatHistory] = useState([]);
+  const [isSending, setIsSending] = useState(false);
+  const scrollRef = useRef(null);
+  const textareaRef = useRef(null);
+
+  const MAX_TEXTAREA_HEIGHT = 120; // px, ~5 lines before it scrolls internally
+
+  const resizeTextarea = () => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, MAX_TEXTAREA_HEIGHT)}px`;
+  };
+
+  useEffect(() => {
+    resizeTextarea();
+  }, [message]);
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+  }, [chatHistory, isSending]);
 
   // Prompts tailored to actual features available on SkillSphere
   const candidatePrompts = [
@@ -85,24 +108,57 @@ export default function ChatInterface({ role, onClose }) {
   ];
 
   const suggestedPrompts = role === 'company' ? companyPrompts : candidatePrompts;
-  const userName = role === 'company' ? 'Recruiter' : 'Aarav';
+  const firstName = user?.displayName?.trim().split(' ')[0];
+  const userName = firstName || (role === 'company' ? 'Recruiter' : 'there');
   const subtitle = role === 'company' ? 'Your recruiting assistant' : 'Your career companion';
 
-  const handleSend = (e) => {
-    e.preventDefault();
-    if (!message.trim()) return;
-    
-    // Add user message to history
-    setChatHistory([...chatHistory, { text: message, sender: 'user' }]);
-    setMessage('');
-    
-    // Simulate AI response (Mockup for now)
-    setTimeout(() => {
-      setChatHistory(prev => [
-        ...prev, 
-        { text: "I'm currently a mockup frontend AI! Please hook me up to a real backend API to process this request.", sender: 'ai' }
+  const handleSend = async (e) => {
+    e?.preventDefault();
+    const text = message.trim();
+    if (!text || isSending) return;
+
+    // "/start" is a client-side command that brings back the feature
+    // menu instead of round-tripping to the backend.
+    if (text.toLowerCase() === '/start') {
+      setChatHistory((prev) => [
+        ...prev,
+        { text, sender: 'user' },
+        { text: 'Sure! Here are the things I can help you with:', sender: 'menu' },
       ]);
-    }, 1000);
+      setMessage('');
+      return;
+    }
+
+    // Conversation so far, in the { role, content } shape the backend
+    // expects — sent alongside the new message so it has context.
+    const historyForApi = chatHistory.map((m) => ({
+      role: m.sender === 'user' ? 'user' : 'assistant',
+      content: m.text,
+    }));
+
+    setChatHistory((prev) => [...prev, { text, sender: 'user' }]);
+    setMessage('');
+    setIsSending(true);
+
+    try {
+      const reply = await sendChatMessage(text, historyForApi);
+      setChatHistory((prev) => [...prev, { text: reply, sender: 'ai' }]);
+    } catch (err) {
+      const status = err.response?.status;
+      let errorText = 'Something went wrong. Please try again.';
+      if (!err.response) {
+        errorText = "I couldn't reach the server. Please check your connection and try again.";
+      } else if (status === 429) {
+        errorText = "You're sending messages a bit too fast — please wait a moment and try again.";
+      } else if (status === 504) {
+        errorText = 'That took too long to respond. Please try again.';
+      } else if (err.response?.data?.message) {
+        errorText = err.response.data.message;
+      }
+      setChatHistory((prev) => [...prev, { text: errorText, sender: 'ai', isError: true }]);
+    } finally {
+      setIsSending(false);
+    }
   };
 
   const handlePromptClick = (text) => {
@@ -135,7 +191,7 @@ export default function ChatInterface({ role, onClose }) {
       </div>
 
       {/* Chat Body */}
-      <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-5 bg-[var(--bg-body)] relative">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto p-5 flex flex-col gap-5 bg-[var(--bg-body)] relative">
         
         {/* Welcome Message */}
         {chatHistory.length === 0 && (
@@ -168,37 +224,83 @@ export default function ChatInterface({ role, onClose }) {
 
         {/* Chat History */}
         {chatHistory.map((msg, idx) => (
-          <div key={idx} className={`flex w-full ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div 
-              className={`max-w-[85%] p-3 rounded-2xl text-[0.9rem] leading-relaxed shadow-sm ${
-                msg.sender === 'user' 
-                  ? 'bg-cyan-600 text-white rounded-br-none' 
-                  : 'bg-[var(--bg-card)] border border-[var(--border-card)] text-[var(--text-primary)] rounded-bl-none'
-              }`}
-            >
-              {msg.text}
+          msg.sender === 'menu' ? (
+            <div key={idx} className="flex w-full justify-start">
+              <div className="max-w-[85%] flex flex-col gap-2.5">
+                <div className="p-3 rounded-2xl rounded-bl-none text-[0.9rem] leading-relaxed shadow-sm bg-[var(--bg-card)] border border-[var(--border-card)] text-[var(--text-primary)]">
+                  {msg.text}
+                </div>
+                <div className="flex flex-col gap-2">
+                  {suggestedPrompts.map((prompt, pIdx) => (
+                    <button
+                      key={pIdx}
+                      onClick={() => handlePromptClick(prompt.label)}
+                      className="flex items-center gap-3 w-full p-3 rounded-xl border border-[var(--border-card)] bg-[var(--bg-card)] hover:border-cyan-400 dark:hover:border-cyan-400/50 hover:bg-cyan-50 dark:hover:bg-cyan-500/10 text-[var(--text-primary)] transition-all text-left shadow-sm group"
+                    >
+                      <span className="text-cyan-500 dark:text-cyan-400 group-hover:scale-110 transition-transform">
+                        {prompt.icon}
+                      </span>
+                      <span className="text-[0.9rem] font-medium">{prompt.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div key={idx} className={`flex w-full ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+              <div
+                className={`max-w-[85%] min-w-0 p-3 rounded-2xl text-[0.9rem] leading-relaxed shadow-sm whitespace-pre-wrap break-words ${
+                  msg.sender === 'user'
+                    ? 'bg-cyan-600 text-white rounded-br-none'
+                    : msg.isError
+                    ? 'bg-red-500/10 border border-red-500/25 text-red-400 rounded-bl-none'
+                    : 'bg-[var(--bg-card)] border border-[var(--border-card)] text-[var(--text-primary)] rounded-bl-none'
+                }`}
+              >
+                {msg.text}
+              </div>
+            </div>
+          )
+        ))}
+
+        {/* Typing indicator while waiting on the assistant */}
+        {isSending && (
+          <div className="flex w-full justify-start">
+            <div className="max-w-[85%] p-3.5 rounded-2xl rounded-bl-none bg-[var(--bg-card)] border border-[var(--border-card)] flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-[var(--text-muted)] animate-bounce [animation-delay:-0.3s]" />
+              <span className="w-1.5 h-1.5 rounded-full bg-[var(--text-muted)] animate-bounce [animation-delay:-0.15s]" />
+              <span className="w-1.5 h-1.5 rounded-full bg-[var(--text-muted)] animate-bounce" />
             </div>
           </div>
-        ))}
+        )}
       </div>
 
       {/* Input Area */}
       <div className="p-4 bg-[var(--bg-panel)] border-t border-[var(--border-card)] shrink-0">
         <form 
           onSubmit={handleSend}
-          className="flex items-center gap-2 bg-[var(--bg-body)] border border-[var(--border-card)] rounded-full px-4 py-2 focus-within:border-cyan-400 dark:focus-within:border-cyan-500/50 transition-colors shadow-sm"
+          className="flex items-end gap-2 bg-[var(--bg-body)] border border-[var(--border-card)] rounded-3xl px-4 py-2 focus-within:border-cyan-400 dark:focus-within:border-cyan-500/50 transition-colors shadow-sm"
         >
-          <input 
-            type="text" 
-            placeholder="Type a message..." 
+          <textarea
+            ref={textareaRef}
+            rows={1}
+            placeholder={chatHistory.length > 0 ? 'Type a message... (/start for menu)' : 'Type a message...'}
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            className="flex-1 bg-transparent border-none outline-none text-[0.95rem] text-[var(--text-primary)] placeholder-[var(--text-muted)] py-1"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+              }
+            }}
+            disabled={isSending}
+            className="flex-1 bg-transparent border-none outline-none resize-none text-[0.95rem] text-[var(--text-primary)] placeholder-[var(--text-muted)] py-1 disabled:opacity-60 leading-relaxed"
+            style={{ maxHeight: `${MAX_TEXTAREA_HEIGHT}px` }}
           />
-          <button 
+          <button
             type="submit"
-            disabled={!message.trim()}
-            className="text-cyan-600 dark:text-cyan-400 disabled:text-gray-300 dark:disabled:text-gray-600 hover:scale-110 transition-transform p-1 cursor-pointer"
+            disabled={!message.trim() || isSending}
+            className="text-cyan-600 dark:text-cyan-400 disabled:text-gray-300 dark:disabled:text-gray-600 hover:scale-110 transition-transform p-1 cursor-pointer shrink-0"
           >
             <IconSend />
           </button>

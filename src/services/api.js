@@ -531,4 +531,20 @@ export const markAllNotificationsRead = async () => {
   await api.patch('/notifications/read-all');
 };
 
+/* ══════════════════════════════════════════════════
+   CHATBOT (candidate & company assistants)
+══════════════════════════════════════════════════ */
+
+/**
+ * Sends one message to the signed-in user's AI assistant. The backend
+ * picks the candidate/company prompt and API key from the JWT's role —
+ * `role` is never sent from the client. `history` is the running
+ * conversation as [{ role: 'user'|'assistant', content }]; only the
+ * last 10 exchanges are actually used server-side.
+ */
+export const sendChatMessage = async (message, history = []) => {
+  const { data } = await api.post('/chatbot', { message, history });
+  return data.data.reply;
+};
+
 export default api;

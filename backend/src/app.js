@@ -14,6 +14,7 @@ const jobRoutes      = require('./job/job.routes');
 const candidateRoutes = require('./candidate/candidate.routes');
 const dashboardRoutes = require('./dashboard/dashboard.routes');
 const notificationRoutes = require('./notification/notification.routes');
+const chatbotRoutes  = require('./chatbot/chatbot.routes');
 const AppError      = require('./utils/AppError');
 
 const app = express();
@@ -73,6 +74,7 @@ app.use('/api/jobs',    jobRoutes);
 app.use('/api/candidates', candidateRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/chatbot', chatbotRoutes);
 
 app.use((req, _res, next) => next(new AppError(`Route ${req.originalUrl} not found.`, 404)));
 
