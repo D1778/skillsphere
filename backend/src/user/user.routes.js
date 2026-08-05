@@ -1,27 +1,29 @@
 const { Router }                    = require('express');
 const multer                        = require('multer');
-const path                          = require('path');
-const fs                            = require('fs');
+// Handles both export shapes across versions of this package: v3+ exports
+// { CloudinaryStorage }, v1/v2 export the class directly as module.exports.
+const multerStorageCloudinary       = require('multer-storage-cloudinary');
+const CloudinaryStorage             = multerStorageCloudinary.CloudinaryStorage || multerStorageCloudinary;
+const cloudinary                    = require('../config/cloudinary');
 const controller                    = require('./user.controller');
 const { authenticate, authorize }   = require('../auth/auth.middleware');
 
-/* ── Multer: save avatar/logo uploads to /uploads ──
-   Same shared folder + naming scheme as the profile module, so both
-   sets of uploads are served from the one static /uploads route. */
-const UPLOAD_DIR = path.join(__dirname, '../../uploads');
-if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
-  filename:    (_req, file, cb) => {
-    const ext  = path.extname(file.originalname);
-    const name = `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`;
-    cb(null, name);
-  },
+/* ── Storage for avatar/company logo uploads. Pushed to Cloudinary
+   instead of local disk — same reason as everywhere else in this app:
+   Render's filesystem is wiped on every deploy/restart. Left as
+   resource_type 'image' (the default), so Cloudinary auto-generates
+   the public_id without the file extension baked in, same as any other
+   image asset. ── */
+const avatarStorage = new CloudinaryStorage({
+  cloudinary,
+  params: async (req, _file) => ({
+    folder: 'skillsphere/avatars',
+    public_id: `${req.user?._id || 'anon'}-${Date.now()}`,
+  }),
 });
 
 const upload = multer({
-  storage,
+  storage: avatarStorage,
   limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
   fileFilter: (_req, file, cb) => {
     const allowed = ['image/jpeg', 'image/png', 'image/webp'];

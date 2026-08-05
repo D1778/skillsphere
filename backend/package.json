@@ -15,20 +15,18 @@
   "dependencies": {
     "@clerk/backend": "^3.8.4",
     "bcryptjs": "^3.0.3",
-    "cloudinary": "^2.10.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "express-rate-limit": "^8.5.2",
-    "firebase-admin": "^10.3.0",
+    "firebase-admin": "^14.1.0",
     "helmet": "^8.2.0",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.7.2",
     "morgan": "^1.11.0",
     "multer": "^2.2.0",
-    "multer-storage-cloudinary": "^2.2.1",
     "nodemailer": "^9.0.1",
-    "resend": "^6.18.1"
+    "resend": "^6.16.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.14"

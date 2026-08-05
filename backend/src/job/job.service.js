@@ -70,11 +70,13 @@ const buildAttachments = (files, existing) => {
 
   if (files?.jobDescriptionPdf?.[0]) {
     const f = files.jobDescriptionPdf[0];
-    attachments.jobDescriptionPdf = { url: `/uploads/jobs/${f.filename}`, originalName: f.originalname };
+    // `f.path` is set by multer-storage-cloudinary to the asset's full
+    // https secure_url — already fetchable from anywhere.
+    attachments.jobDescriptionPdf = { url: f.path, originalName: f.originalname };
   }
   if (files?.companyBrochurePdf?.[0]) {
     const f = files.companyBrochurePdf[0];
-    attachments.companyBrochurePdf = { url: `/uploads/jobs/${f.filename}`, originalName: f.originalname };
+    attachments.companyBrochurePdf = { url: f.path, originalName: f.originalname };
   }
 
   return attachments;

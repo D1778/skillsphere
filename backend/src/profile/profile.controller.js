@@ -48,7 +48,9 @@ const updateProfile = async (req, res, next) => {
       update.personal = {
         ...(existing?.personal || {}),
         ...(update.personal || {}),
-        photoUrl: `/uploads/${req.files.photo[0].filename}`,
+        // `req.files.photo[0].path` is set by multer-storage-cloudinary
+        // to the asset's full https secure_url.
+        photoUrl: req.files.photo[0].path,
       };
     } else if (update.personal && !update.personal.photoUrl) {
       // Candidate explicitly removed their photo — the frontend sends
@@ -75,7 +77,7 @@ const updateProfile = async (req, res, next) => {
           if (Array.isArray(update.certs) && update.certs[idx]) {
             update.certs[idx] = {
               ...update.certs[idx],
-              certPdfUrl: `/uploads/${req.files[key][0].filename}`,
+              certPdfUrl: req.files[key][0].path,
             };
           }
         }
