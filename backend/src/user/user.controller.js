@@ -87,7 +87,9 @@ const uploadPhoto = async (req, res, next) => {
     if (!user) return next(new AppError('User not found.', 404));
 
     const previousPhotoUrl = user.photoURL || '';
-    user.photoURL = `/uploads/${req.file.filename}`;
+    // `req.file.path` is set by multer-storage-cloudinary to the asset's
+    // full https secure_url — already fetchable from anywhere.
+    user.photoURL = req.file.path;
     await user.save();
 
     // Clean up the file this one just replaced (if it was one of ours —

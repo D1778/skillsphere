@@ -4,7 +4,6 @@
 const { Router } = require('express');
 const multer      = require('multer');
 const path        = require('path');
-const fs          = require('fs');
 // Handles both export shapes across versions of this package: v3+ exports
 // { CloudinaryStorage }, v1/v2 export the class directly as module.exports.
 const multerStorageCloudinary = require('multer-storage-cloudinary');
@@ -17,18 +16,16 @@ const controller  = require('./job.controller');
 const router = Router();
 
 /* ── Storage for the two optional job attachments (job description PDF,
-   company brochure PDF). Mirrors the disk-storage pattern used for
-   profile photos/certs, just pointed at its own uploads/jobs folder
-   so job files don't mix with profile files. ── */
-const UPLOAD_DIR = path.join(__dirname, '../../uploads/jobs');
-fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
-  filename: (req, file, cb) => {
-    const safeField = file.fieldname.replace(/[^a-zA-Z0-9_-]/g, '');
-    cb(null, `${req.user?._id || 'anon'}-${safeField}-${Date.now()}${path.extname(file.originalname)}`);
-  },
+   company brochure PDF). Pushed to Cloudinary instead of local disk —
+   same reason as resumes: Render's filesystem is wiped on every deploy
+   and restart, so anything saved to disk silently disappears. ── */
+const attachmentStorage = new CloudinaryStorage({
+  cloudinary,
+  params: async (req, file) => ({
+    folder:        'skillsphere/job-attachments',
+    resource_type: 'raw', // PDFs aren't images
+    public_id:     `${req.user?._id || 'anon'}-${file.fieldname}-${Date.now()}${path.extname(file.originalname)}`,
+  }),
 });
 
 const fileFilter = (_req, file, cb) => {
@@ -39,7 +36,7 @@ const fileFilter = (_req, file, cb) => {
 };
 
 const upload = multer({
-  storage,
+  storage: attachmentStorage,
   fileFilter,
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB, matches the "Max size 5MB" copy in the UI
 });
